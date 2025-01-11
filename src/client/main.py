@@ -14,6 +14,8 @@ def main() -> None:
     client = Client(data_size, tcp_connections_num, udp_connections_num)
     # Runs the client
     client.run()
+    input("Press any key to shutdown the client, this will prevent further connections")
+    client.shutdown()
     
 def get_data_size() -> int:
     user_choice: int = input("""what unit would you like to enter the file size in?
