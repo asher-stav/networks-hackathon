@@ -22,17 +22,31 @@ class Client:
         """
         Runs the client until stopped, constantly looking for servers to run a speedtest on.
         """
+        print ("Client started, listening for offer requests...")
+        # AF_INET - IPv4, SOCK_DGRAM - UDP
+        sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        # Enable broadcasting on the socket
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        # Enable reusing the port
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        # Bind the socket to the port - route -> 1 up in the keyboard ;)
+        sock.bind(("", 49753))
         while not self.__shutdown:
-            sock: socket.socket = None
-            # TODO - Look for a server
-            self.request_file()
+            # data from the server
+            data: bytes
+            # address and port of the server
+            addr: tuple[str, int]
+            data, addr = sock.recvfrom(9)
+            
+            # <H for unsigned short (2 bytes) as a little endian
+            self.request_file(addr[0], struct.unpack("<H", data[6:8])[0], struct.unpack("<H", data[8:10])[0])
 
     def shutdown(self) -> None:
         """
         Shuts down the client, preventing it from receiving further offers.
         If the client runs a task currently, it will finish it before termination.
         """
-        pass
+        self.shutdown = True
     
     def request_file(self, server_addr: str, server_udp_port: int, server_tcp_port: int) -> None:
         for i in range(self.__tcp_connections_num):
