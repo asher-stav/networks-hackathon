@@ -2,6 +2,13 @@ import socket
 import struct
 import threading
 
+
+COOKIE = 0xabcddcba
+UDP_OFFER_MSG_CODE = 0x2
+UDP_REQUEST_MSG_CODE = 0x3
+UDP_PAYLOAD_MSG_CODE = 0x4
+
+
 class Server:
     """
     Server class that listens for incoming connections from clients in either UDP or TCP.
