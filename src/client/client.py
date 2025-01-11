@@ -36,13 +36,11 @@ class Client:
     
     def request_file(self, server_addr: str, server_udp_port: int, server_tcp_port: int) -> None:
         for i in range(self.__tcp_connections_num):
-            # TODO - Create a new thread for each tcp connection with the method tcp_connect
-            pass
+            threading.Thread(target=self.tcp_connect, args=(server_addr, server_tcp_port)).start()
         for i in range(self.__udp_connections_num):
-            # TODO - Create a new thread for each udp connection with the method udp_connect
-            pass
-        pass
-
+            threading.Thread(target=self.udp_connect, args=(server_addr, server_udp_port)).start()
+            
+            
     def tcp_connect(self, server_addr: str, server_tcp_port: int) -> None:
         pass
     
