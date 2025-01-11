@@ -36,10 +36,18 @@ class Client:
             data: bytes
             # address and port of the server
             addr: tuple[str, int]
-            data, addr = sock.recvfrom(9)
+            # receive data from the server, 10 bytes - length of the message,
+            # purposefully set 1 byte more than the message length to check for errors
+            # recvfrom is a blocking call - no busy waiting.
+            data, addr = sock.recvfrom(10)
+            # 9 bytes is the expected size of the offer message.
+            # 0xabcddcba is the magic cookie
+            # 0x2 is the offer message type
+            if(len(data) == 9 & data[0:4] == 0xabcddcba & data[4] == 0x2):
+                # H for unsigned short (2 bytes)
+                # < for little endian
+                self.request_file(addr[0], struct.unpack("<H", data[6:8])[0], struct.unpack("<H", data[8:10])[0])
             
-            # <H for unsigned short (2 bytes) as a little endian
-            self.request_file(addr[0], struct.unpack("<H", data[6:8])[0], struct.unpack("<H", data[8:10])[0])
 
     def shutdown(self) -> None:
         """
