@@ -12,6 +12,8 @@ UDP_PAYLOAD_MSG_CODE = 0x4
 
 BROADCAST_IP = '255.255.255.255'
 
+REQUEST_MESSAGE_LEN = 13
+
 class Server:
     """
     Server class that listens for incoming connections from clients in either UDP or TCP.
@@ -21,6 +23,11 @@ class Server:
     __udp_port: int
     __tcp_port: int
     __broadcast_port: int
+
+    __offer_sock: socket.socket
+    __udp_sock: socket.socket
+    __tcp_sock: socket.socket
+
     __shutdown_lock: threading.Lock
     
     def __init__(self, udp_port: int, tcp_port: int, broadcast_port: int):
@@ -39,31 +46,45 @@ class Server:
         return shutdown
     
     def listening(self):
-        ip: str = ''
-        # TODO - start listening to clients
-        offer_sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        offer_thread: threading.Thread = threading.Thread(target=self.announcer, args=(offer_sock, ))
+        # Open UDP server
+        self.__udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.__udp_sock.bind(('', self.__udp_port))
+
+        udp_thread: threading.Thread = threading.Thread(target=self.listen_udp)
+        udp_thread.start()
+
+        # Open TCP serer
+        self.__tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.__tcp_sock.bind(('', self.__tcp_port))
+
+        tcp_thread: threading.Thread = threading.Thread(target=self.listen_tcp)
+        tcp_thread.start()
+
+        # Open offer thread
+        self.__offer_sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        offer_thread: threading.Thread = threading.Thread(target=self.announcer)
         offer_thread.start()
 
-        print(f'Server started, listening on IP address {'TODO'}')
-        self.announcer(offer_sock)
+        print(f'Server started, listening on IP address {socket.gethostbyname(socket.gethostname())}')
 
     def shutdown(self) -> None:
         """
         Shuts down the server, preventing it from receiving further new client connections.
         Finishes handling existing connections before termination
         """
-        pass        
+        self.__shutdown_lock.acquire()
+        self.__shutdown = True
+        self.__shutdown_lock.release()        
             
-    def announcer(self, sock: socket.socket) -> None:
+    def announcer(self) -> None:
         """
         Sends offers to connect to the server every second
         """
         while not self.is_shutdown():
-            self.send_upd_offer(sock)
+            self.send_upd_offer()
             time.sleep(1)
 
-    def send_upd_offer(self, sock: socket.socket) -> None:
+    def send_upd_offer(self) -> None:
         """
         Sends an broadcast offer to connect to the server.
         Message structure:
@@ -75,16 +96,22 @@ class Server:
         message: bytes
         message = struct.pack('>I', COOKIE)
         message += struct.pack('>H', UDP_OFFER_MSG_CODE, self.__udp_port, self.__tcp_port)
-        sock.sendto(message, (BROADCAST_IP, self.__broadcast_port))
+        self.__offer_sock.sendto(message, (BROADCAST_IP, self.__broadcast_port))
         
     def listen_udp(self):
-        pass
+        while not self.is_shutdown():
+            data, address = self.__udp_sock.recvfrom(REQUEST_MESSAGE_LEN)
+            threading.Thread(target=self.handle_udp_connection, args=(data, address)).start()
 
     def listen_tcp(self):
+        self.__tcp_sock.listen()
+
+        while not self.is_shutdown():
+            client_sock: socket.socket = self.__tcp_sock.accept()
+            threading.Thread(target=self.handle_tcp_connection, args=(client_sock, )).start()
+
+    def handle_udp_connection(self, data: bytes, address):
         pass
 
-    def handle_udp_connection(self):
-        pass
-
-    def handle_tcp_connection(self):
+    def handle_tcp_connection(self, client_sock: socket.socket):
         pass
