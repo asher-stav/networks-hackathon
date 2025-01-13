@@ -53,20 +53,41 @@ class Server:
     def listening(self):
         # Open UDP server
         self.__udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.__udp_sock.bind(('', self.__udp_port))
+        try:
+            self.__udp_sock.bind(('', self.__udp_port))
+        except:
+            print(f'Error: failed to bind TCP server to port {self.__tcp_port}')
+            self.__udp_sock.close()
+            return
 
         udp_thread: threading.Thread = threading.Thread(target=self.listen_udp)
         udp_thread.start()
 
         # Open TCP serer
         self.__tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.__tcp_sock.bind(('', self.__tcp_port))
+        try:
+            self.__tcp_sock.bind(('', self.__tcp_port))
+        except:
+            print(f'Error: failed to bind UDP server to port {self.__tcp_port}')
+            self.__udp_sock.close()
+            self.__tcp_sock.close()
+            return
 
         tcp_thread: threading.Thread = threading.Thread(target=self.listen_tcp)
         tcp_thread.start()
 
         # Open offer thread
         self.__offer_sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            self.__offer_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            self.__offer_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            self.__offer_sock.bind(('', self.__broadcast_port))
+        except:
+            print(f'Error: failed to bind broadcast to port {self.__broadcast_port}')
+            self.__udp_sock.close()
+            self.__tcp_sock.close()
+            self.__offer_sock.close()
+            return
         offer_thread: threading.Thread = threading.Thread(target=self.announcer)
         offer_thread.start()
 
@@ -79,7 +100,12 @@ class Server:
         """
         self.__shutdown_lock.acquire()
         self.__shutdown = True
-        self.__shutdown_lock.release()        
+        self.__shutdown_lock.release()
+
+        self.__offer_sock.close()
+        # Enable UDP & TCP listeners to wrap up connections - close only reading from socket
+        self.__tcp_sock.shutdown(socket.SHUT_RD)
+        self.__udp_sock.shutdown(socket.SHUT_RD)
             
     def announcer(self) -> None:
         """
@@ -105,16 +131,28 @@ class Server:
         self.__offer_sock.sendto(message, (BROADCAST_IP, self.__broadcast_port))
         
     def listen_udp(self):
-        while not self.is_shutdown():
-            data, address = self.__udp_sock.recvfrom(REQUEST_MESSAGE_LEN)
-            threading.Thread(target=self.handle_udp_connection, args=(data, address)).start()
+        try:
+            while not self.is_shutdown():
+                data, address = self.__udp_sock.recvfrom(REQUEST_MESSAGE_LEN)
+                threading.Thread(target=self.handle_udp_connection, args=(data, address)).start()
+        except:
+            print('Error: failed to receive new UDP message. Wrapping up UDP server...')
+            # Wait some time for other threads to wrap up
+            time.sleep(5)
+            self.__udp_sock.close()
 
     def listen_tcp(self):
-        self.__tcp_sock.listen()
+        try:
+            self.__tcp_sock.listen()
 
-        while not self.is_shutdown():
-            client_sock: socket.socket = self.__tcp_sock.accept()
-            threading.Thread(target=self.handle_tcp_connection, args=(client_sock, )).start()
+            while not self.is_shutdown():
+                client_sock: socket.socket = self.__tcp_sock.accept()
+                threading.Thread(target=self.handle_tcp_connection, args=(client_sock, )).start()
+        except:
+            print('Error: failed to accept new TCP client. Wrapping up TCP server...')
+            # Wait some time for other threads to wrap up
+            time.sleep(5)
+            self.__tcp_sock.close()
 
     def handle_udp_connection(self, data: bytes, address) -> None:
         cookie: int = struct.unpack('>I', data[REQUEST_COOKIE_INDEX:REQUEST_TYPE_INDEX])
@@ -155,7 +193,13 @@ class Server:
         bytes_amount: int = 0
         curr_char: str = ''
         while curr_char != '\n':
-            curr_char = client_sock.recv(1).decode()
+            try:
+                curr_char = client_sock.recv(1).decode()
+            except:
+                print('Error: TCP client failed to receive next char')
+                client_sock.close()
+                return
+            
             if not curr_char.isdigit():
                 print('Error: received a non-digit char from client in TCP connection!')
                 client_sock.close()
