@@ -1,5 +1,3 @@
-from email import message
-from logging import shutdown
 import socket
 import struct
 import threading
@@ -92,6 +90,9 @@ class Server:
         offer_thread.start()
 
         print(f'Server started, listening on IP address {socket.gethostbyname(socket.gethostname())}')
+        offer_thread.join()
+        udp_thread.join()
+        tcp_thread.join()
 
     def shutdown(self) -> None:
         """

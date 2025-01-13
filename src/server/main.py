@@ -20,8 +20,12 @@ def main() -> None:
         print("Invalid command line arguments. Format: <udp_port> <tcp_port> <broadcast_port>")
         return
     
-    # Get the port numbers from the user
-    server: Server = Server(udp_port, tcp_port, broadcast_port)
+    s: Server = Server(udp_port, tcp_port, broadcast_port)
+    try:
+        s.listening()
+    except KeyboardInterrupt:
+        s.shutdown()
+
 
 if __name__ == '__main__':
     main()
