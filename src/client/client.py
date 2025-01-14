@@ -101,7 +101,9 @@ def tcp_connect(self, server_addr: str, server_tcp_port: int) -> None:
     sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     addr: tuple[str, int] = (server_addr, server_tcp_port)
     # Prepare the request message
-    request_msg: bytes = struct.pack(COOKIE, TYPE_REQUEST, self.__data_size)
+    cookie = struct.pack('I', COOKIE)
+    type_offer = struct.pack('H', TYPE_REQUEST)
+    request_msg: bytes = cookie + type_offer + self.__data_size
     req_data_size: int = struct.unpack("Q", self.__data_size)[0]
     data_left: int = req_data_size
 
@@ -123,10 +125,20 @@ def tcp_connect(self, server_addr: str, server_tcp_port: int) -> None:
                 print("Server closed the connection.")
                 return
 
-            if data[COOKIE_IDX] != COOKIE or data[TYPE_IDX] != TYPE_PAYLOAD:
-                print("Received a non-payload message from the server.")
+            cookie: int = struct.unpack('I', data[COOKIE_IDX:COOKIE_IDX+COOKIE_LEN])
+            if cookie != COOKIE:
+                print(f'Error: received invalid cookie: {cookie}')
+                print('Closing socket...')
+                sock.close()
                 return
-
+                
+            message_type: int = struct.unpack('B', data[TYPE_IDX:TYPE_IDX+TYPE_LEN])
+            if message_type != TYPE_PAYLOAD:
+                print(f'Error: received invalid message type: {message_type}. Expected: {TYPE_REQUEST}')
+                print('Closing socket...')
+                sock.close()
+                return
+            
             # Calculate the actual payload length
             payload_len: int = len(data[PAYLOAD_DATA_IDX:])
             data_left -= payload_len
