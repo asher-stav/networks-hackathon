@@ -113,10 +113,10 @@ class Server:
         Sends offers to connect to the server every second
         """
         while not self.is_shutdown():
-            self.send_upd_offer()
+            self.send_udp_offer()
             time.sleep(1)
 
-    def send_upd_offer(self) -> None:
+    def send_udp_offer(self) -> None:
         """
         Sends an broadcast offer to connect to the server.
         Message structure:
@@ -126,9 +126,10 @@ class Server:
             - server TCP port, 2 bytes
         """
         message: bytes
-        message = struct.pack('>I', COOKIE)
-        message += struct.pack('>B', UDP_OFFER_MSG_CODE)
-        message += struct.pack('>H', self.__udp_port, self.__tcp_port)
+        message = struct.pack('I', COOKIE)
+        message += struct.pack('B', UDP_OFFER_MSG_CODE)
+        message += struct.pack('H', self.__udp_port)
+        message += struct.pack('H', self.__tcp_port)
         self.__offer_sock.sendto(message, (BROADCAST_IP, self.__broadcast_port))
         
     def listen_udp(self):
@@ -156,27 +157,27 @@ class Server:
             self.__tcp_sock.close()
 
     def handle_udp_connection(self, data: bytes, address) -> None:
-        cookie: int = struct.unpack('>I', data[REQUEST_COOKIE_INDEX:REQUEST_TYPE_INDEX])
+        cookie: int = struct.unpack('I', data[REQUEST_COOKIE_INDEX:REQUEST_TYPE_INDEX])
         if cookie != COOKIE:
             print(f'Error: received invalid cookie: {cookie}')
             return
         
-        message_type: int = struct.unpack('>B', data[REQUEST_TYPE_INDEX:REQUEST_FILE_SIZE_INDEX])
+        message_type: int = struct.unpack('B', data[REQUEST_TYPE_INDEX:REQUEST_FILE_SIZE_INDEX])
         if message_type != UDP_REQUEST_MSG_CODE:
             print(f'Error: received invalid message type: {message_type}. Expected: {UDP_REQUEST_MSG_CODE}')
             return
         
-        file_size: int = struct.unpack('>L', data[REQUEST_FILE_SIZE_INDEX:REQUEST_MESSAGE_LEN])
+        file_size: int = struct.unpack('L', data[REQUEST_FILE_SIZE_INDEX:REQUEST_MESSAGE_LEN])
 
         segments_amount: int = Server.get_udp_segments_amount(file_size)
         single_segment_payload: int = file_size // segments_amount
-        message_start: bytes = struct.pack('>I', COOKIE) + struct.pack('>B', UDP_PAYLOAD_MSG_CODE) + \
-            struct.pack('>L', segments_amount)
+        message_start: bytes = struct.pack('I', COOKIE) + struct.pack('B', UDP_PAYLOAD_MSG_CODE) + \
+            struct.pack('L', segments_amount)
 
         for curr_segment in range(segments_amount):
             message: bytes = b''
             message += message_start
-            message += struct.pack('>L', curr_segment)
+            message += struct.pack('L', curr_segment)
             message += ('a' * single_segment_payload).encode()
             try:
                 self.__udp_sock.sendto(message, address)
