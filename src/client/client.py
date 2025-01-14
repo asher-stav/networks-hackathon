@@ -2,6 +2,36 @@ import socket
 import struct
 import threading
 
+
+# message structure constants:
+COOKIE = 0xabcddcba
+COOKIE_INDEX = 0
+COOKIE_LEN = 4
+
+TYPE_OFFER = 0x2
+TYPE_REQUEST = 0x3
+TYPE_PAYLOAD = 0x4
+TYPE_INDEX = 4
+TYPE_LEN = 1
+# OFFER message
+OFFER_UDP_IDX = 5
+OFFER_UDP_LEN = 2
+OFFER_TCP_IDX = 7
+OFFER_TCP_LEN = 2
+OFFER_MSG_LEN = 9
+# REQUEST message
+REQUEST_FILE_SIZE_IDX = 5
+REQUEST_FILE_LEN = 8
+REQUEST_MESSAGE_LEN = 13
+# PAYLOAD message
+PAYLOAD_SEGMENT_COUNT_IDX = 5
+PAYLOAD_SEGMENT_COUNT_LEN = 8
+PAYLOAD_CURRENT_SEGMENT_IDX = 13
+PAYLOAD_CURRENT_SEGMENT_LEN = 8
+# actual payload length is unknown, will be calculated in runtime.
+
+BROADCAST_IP = '255.255.255.255'
+
 class Client:
     """
     A class representing a client that can connect to servers and run speed-tests on them, both with UDP and TCP connections.
