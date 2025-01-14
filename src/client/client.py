@@ -65,25 +65,22 @@ class Client:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         # Enable reusing the port
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        # Bind the socket to the port
         sock.bind(("", self.__port))
         while not self.__shutdown:
-            # data from the server
             data: bytes
-            # address and port of the server
             addr: tuple[str, int]
             # purposefully set 1 byte more than the message length to check for errors
-            # recvfrom is a blocking call - no busy waiting.
             data, addr = sock.recvfrom(OFFER_MSG_LEN + 1)
+
             # check for correct offer message structure and values.
-            if(len(data) == OFFER_MSG_LEN &
-                data[COOKIE_IDX:COOKIE_IDX+COOKIE_LEN] == COOKIE &
-                  data[TYPE_IDX] == TYPE_OFFER):
-                # H for unsigned short (2 bytes)
-                # < for little endian
-                self.request_file(addr[0],
-                                   struct.unpack("<H", data[OFFER_UDP_IDX:OFFER_UDP_IDX+OFFER_UDP_LEN])[0],
-                                   struct.unpack("<H", data[OFFER_TCP_IDX:OFFER_TCP_IDX+OFFER_TCP_LEN])[0])
+            if len(data) == OFFER_MSG_LEN:
+                cookie = struct.unpack(data[COOKIE_IDX:COOKIE_IDX+COOKIE_LEN])[0]
+                type = struct.unpack(data[TYPE_IDX:TYPE_IDX+TYPE_LEN])[0]
+                if cookie == COOKIE and type == TYPE_OFFER:
+                    # H for unsigned short (2 bytes)
+                    self.request_file(addr[0],
+                                    struct.unpack("H", data[OFFER_UDP_IDX:OFFER_UDP_IDX+OFFER_UDP_LEN])[0],
+                                    struct.unpack("H", data[OFFER_TCP_IDX:OFFER_TCP_IDX+OFFER_TCP_LEN])[0])
             
 
     def shutdown(self) -> None:
@@ -100,24 +97,84 @@ class Client:
             threading.Thread(target=self.udp_connect, args=(server_addr, server_udp_port)).start()
             
             
-    def tcp_connect(self, server_addr: str, server_tcp_port: int) -> None:
-        pass
+def tcp_connect(self, server_addr: str, server_tcp_port: int) -> None:
+    sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    addr: tuple[str, int] = (server_addr, server_tcp_port)
+    # Prepare the request message
+    request_msg: bytes = struct.pack(COOKIE, TYPE_REQUEST, self.__data_size)
+    req_data_size: int = struct.unpack("Q", self.__data_size)[0]
+    data_left: int = req_data_size
+
+
+    try:
+        # Connect to the server
+        sock.connect(addr)
+        print(f"Connected to server {server_addr}:{server_tcp_port} via TCP.")
+
+        # Send the request message
+        sock.sendall(request_msg)
+        print(f"Sent request message of {req_data_size} bytes to the connected server.")
+
+        # Receive data
+        start_time: float = time.time()
+        while data_left > 0:
+            data: bytes = sock.recv(MAX_PAYLOAD_MSG_SIZE)
+            if not data:
+                print("Server closed the connection.")
+                return
+
+            if data[COOKIE_IDX] != COOKIE or data[TYPE_IDX] != TYPE_PAYLOAD:
+                print("Received a non-payload message from the server.")
+                return
+
+            # Calculate the actual payload length
+            payload_len: int = len(data[PAYLOAD_DATA_IDX:])
+            data_left -= payload_len
+
+        end_time: float = time.time()
+        transfer_time: float = end_time - start_time
+        transfer_rate: float = BYTE_SIZE * req_data_size / transfer_time
+
+        print(f"TCP connection to server {server_addr}:{server_tcp_port} finished. "
+              f"Transfer rate: {transfer_rate} bits/sec.")
+
+    except socket.error as e:
+        print(f"TCP connection error: {e}")
+
+    finally:
+        sock.close()
+        print("Connection closed.")
+
     
     def udp_connect(self, server_addr: str, server_udp_port: int) -> None:
         sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         addr: tuple[str, int] = (server_addr, server_udp_port)
-        request_msg: bytes = struct.pack(COOKIE, TYPE_REQUEST, self.__data_size)
+        cookie = struct.pack('I', COOKIE)
+        type_offer = struct.pack('H', TYPE_REQUEST)
+        request_msg: bytes = cookie + type_offer + self.__data_size
         req_data_size: int = struct.unpack("Q", self.__data_size)[0]
         data_left: int = req_data_size
 
-        start_time: float = time.time()
-        sock.sendto(request_msg, addr)
         try:
+            sock.sendto(request_msg, addr)
+            print("Sent request message of {} bytes to server {}:{} via UDP.".format(req_data_size, server_addr, server_udp_port))
+            start_time: float = time.time()
+
             while(data_left > 0):
                 data, server = sock.recvfrom(MAX_PAYLOAD_MSG_SIZE)
-                if(data[COOKIE_IDX] != COOKIE & data[TYPE_IDX] != TYPE_PAYLOAD):
-                    print ("Received a non-payload message from the server.")
-                    return
+                if not data:
+                    print ("Did not receive data from the server.")
+                    continue
+                cookie: int = struct.unpack('I', data[COOKIE_IDX:COOKIE_IDX+COOKIE_LEN])
+                if cookie != COOKIE:
+                    print(f'Error: received invalid cookie: {cookie}')
+                    continue
+                
+                message_type: int = struct.unpack('B', data[TYPE_IDX:TYPE_IDX+TYPE_LEN])
+                if message_type != TYPE_PAYLOAD:
+                    print(f'Error: received invalid message type: {message_type}. Expected: {TYPE_REQUEST}')
+                    continue
+
                 # calculate the actual payload length
                 payload_len: int = len(data[PAYLOAD_DATA_IDX:])
                 data_left -= payload_len
