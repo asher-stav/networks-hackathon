@@ -67,7 +67,6 @@ class Client:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
         sock.bind(("", self.__port))
         while not self.__shutdown:
-            sock.close()
             data: bytes
             addr: tuple[str, int]
             # purposefully set 1 byte more than the message length to check for errors
@@ -75,13 +74,17 @@ class Client:
 
             # check for correct offer message structure and values.
             if len(data) == OFFER_MSG_LEN:
-                cookie = struct.unpack(data[COOKIE_IDX:COOKIE_IDX+COOKIE_LEN])[0]
-                type = struct.unpack(data[TYPE_IDX:TYPE_IDX+TYPE_LEN])[0]
+                cookie = struct.unpack("I", data[COOKIE_IDX:COOKIE_IDX+COOKIE_LEN])[0]
+                type = struct.unpack("B", data[TYPE_IDX:TYPE_IDX+TYPE_LEN])[0]
                 if cookie == COOKIE and type == TYPE_OFFER:
                     # H for unsigned short (2 bytes)
                     self.request_file(addr[0],
                                     struct.unpack("H", data[OFFER_UDP_IDX:OFFER_UDP_IDX+OFFER_UDP_LEN])[0],
                                     struct.unpack("H", data[OFFER_TCP_IDX:OFFER_TCP_IDX+OFFER_TCP_LEN])[0])
+                else:
+                    print("Received invalid cookie or msg type")
+            else:
+                print("Received msg of unexpected length")
         sock.close()
             
 
@@ -99,65 +102,64 @@ class Client:
             threading.Thread(target=self.udp_connect, args=(server_addr, server_udp_port)).start()
             
             
-def tcp_connect(self, server_addr: str, server_tcp_port: int) -> None:
-    sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    addr: tuple[str, int] = (server_addr, server_tcp_port)
-    # Prepare the request message
-    cookie = struct.pack('I', COOKIE)
-    type_offer = struct.pack('H', TYPE_REQUEST)
-    request_msg: bytes = cookie + type_offer + self.__data_size
-    req_data_size: int = struct.unpack("Q", self.__data_size)[0]
-    data_left: int = req_data_size
+    def tcp_connect(self, server_addr: str, server_tcp_port: int) -> None:
+        sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        addr: tuple[str, int] = (server_addr, server_tcp_port)
+        # Prepare the request message
+        cookie = struct.pack('I', COOKIE)
+        type_offer = struct.pack('H', TYPE_REQUEST)
+        request_msg: bytes = cookie + type_offer + self.__data_size
+        req_data_size: int = struct.unpack("Q", self.__data_size)[0]
+        data_left: int = req_data_size
 
-    try:
-        # Connect to the server
-        sock.connect(addr)
-        print(f"Connected to server {server_addr}:{server_tcp_port} via TCP.")
+        try:
+            # Connect to the server
+            sock.connect(addr)
+            print(f"Connected to server {server_addr}:{server_tcp_port} via TCP.")
 
-        # Send the request message
-        sock.sendall(request_msg)
-        print(f"Sent request message of {req_data_size} bytes to the connected server.")
+            # Send the request message
+            sock.sendall(request_msg)
+            print(f"Sent request message of {req_data_size} bytes to the connected server.")
 
-        # Receive data
-        start_time: float = time.time()
-        while data_left > 0:
-            data: bytes = sock.recv(MAX_PAYLOAD_MSG_SIZE)
-            if not data:
-                print("Server closed the connection.")
-                return
+            # Receive data
+            start_time: float = time.time()
+            while data_left > 0:
+                data: bytes = sock.recv(MAX_PAYLOAD_MSG_SIZE)
+                if not data:
+                    print("Server closed the connection.")
+                    return
 
-            cookie: int = struct.unpack('I', data[COOKIE_IDX:COOKIE_IDX+COOKIE_LEN])
-            if cookie != COOKIE:
-                print(f'Error: received invalid cookie: {cookie}')
-                print('Closing socket...')
-                sock.close()
-                return
+                cookie: int = struct.unpack('I', data[COOKIE_IDX:COOKIE_IDX+COOKIE_LEN])
+                if cookie != COOKIE:
+                    print(f'Error: received invalid cookie: {cookie}')
+                    print('Closing socket...')
+                    sock.close()
+                    return
+                    
+                message_type: int = struct.unpack('B', data[TYPE_IDX:TYPE_IDX+TYPE_LEN])
+                if message_type != TYPE_PAYLOAD:
+                    print(f'Error: received invalid message type: {message_type}. Expected: {TYPE_REQUEST}')
+                    print('Closing socket...')
+                    sock.close()
+                    return
                 
-            message_type: int = struct.unpack('B', data[TYPE_IDX:TYPE_IDX+TYPE_LEN])
-            if message_type != TYPE_PAYLOAD:
-                print(f'Error: received invalid message type: {message_type}. Expected: {TYPE_REQUEST}')
-                print('Closing socket...')
-                sock.close()
-                return
-            
-            # Calculate the actual payload length
-            payload_len: int = len(data[PAYLOAD_DATA_IDX:])
-            data_left -= payload_len
+                # Calculate the actual payload length
+                payload_len: int = len(data[PAYLOAD_DATA_IDX:])
+                data_left -= payload_len
 
-        end_time: float = time.time()
-        transfer_time: float = end_time - start_time
-        transfer_rate: float = BYTE_SIZE * req_data_size / transfer_time
+            end_time: float = time.time()
+            transfer_time: float = end_time - start_time
+            transfer_rate: float = BYTE_SIZE * req_data_size / transfer_time
 
-        print(f"TCP connection to server {server_addr}:{server_tcp_port} finished. "
-              f"Transfer rate: {transfer_rate} bits/sec.")
+            print(f"TCP connection to server {server_addr}:{server_tcp_port} finished. "
+                f"Transfer rate: {transfer_rate} bits/sec.")
 
-    except socket.error as e:
-        print(f"TCP connection error: {e}")
+        except socket.error as e:
+            print(f"TCP connection error: {e}")
 
-    finally:
-        sock.close()
-        print("Connection closed.")
-
+        finally:
+            sock.close()
+            print("Connection closed.")
     
     def udp_connect(self, server_addr: str, server_udp_port: int) -> None:
         sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
