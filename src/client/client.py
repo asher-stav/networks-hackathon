@@ -67,6 +67,7 @@ class Client:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
         sock.bind(("", self.__port))
         while not self.__shutdown:
+            sock.close()
             data: bytes
             addr: tuple[str, int]
             # purposefully set 1 byte more than the message length to check for errors
@@ -81,6 +82,7 @@ class Client:
                     self.request_file(addr[0],
                                     struct.unpack("H", data[OFFER_UDP_IDX:OFFER_UDP_IDX+OFFER_UDP_LEN])[0],
                                     struct.unpack("H", data[OFFER_TCP_IDX:OFFER_TCP_IDX+OFFER_TCP_LEN])[0])
+        sock.close()
             
 
     def shutdown(self) -> None:
@@ -88,7 +90,7 @@ class Client:
         Shuts down the client, preventing it from receiving further offers.
         If the client runs a task currently, it will finish it before termination.
         """
-        self.shutdown = True
+        self.__shutdown = True
     
     def request_file(self, server_addr: str, server_udp_port: int, server_tcp_port: int) -> None:
         for i in range(self.__tcp_connections_num):
@@ -106,7 +108,6 @@ def tcp_connect(self, server_addr: str, server_tcp_port: int) -> None:
     request_msg: bytes = cookie + type_offer + self.__data_size
     req_data_size: int = struct.unpack("Q", self.__data_size)[0]
     data_left: int = req_data_size
-
 
     try:
         # Connect to the server
