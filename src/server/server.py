@@ -209,7 +209,7 @@ class Server:
 
         for i in range(bytes_amount):
             try:
-                client_sock.send('a')
+                client_sock.sendall('a')
             except Exception:
                 print(f'Error: failed to send byte number {i} to tcp client!')
                 break
