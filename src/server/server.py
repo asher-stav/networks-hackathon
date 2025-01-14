@@ -75,11 +75,11 @@ class Server:
         tcp_thread.start()
 
         # Open offer thread
-        self.__offer_sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.__offer_sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         try:
             self.__offer_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             self.__offer_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-            self.__offer_sock.bind(('', self.__broadcast_port))
+            #self.__offer_sock.bind(('', self.__broadcast_port))
         except:
             print(f'Error: failed to bind broadcast to port {self.__broadcast_port}')
             self.__udp_sock.close()

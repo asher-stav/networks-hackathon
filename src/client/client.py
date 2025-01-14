@@ -60,7 +60,7 @@ class Client:
         """
         print ("Client started, listening for offer requests...")
         # AF_INET - IPv4, SOCK_DGRAM - UDP
-        sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         # Enable broadcasting on the socket
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         # Enable reusing the port
@@ -70,7 +70,7 @@ class Client:
             data: bytes
             addr: tuple[str, int]
             # purposefully set 1 byte more than the message length to check for errors
-            data, addr = sock.recvfrom(OFFER_MSG_LEN + 1)
+            data, addr = sock.recvfrom(OFFER_MSG_LEN)
 
             # check for correct offer message structure and values.
             if len(data) == OFFER_MSG_LEN:
