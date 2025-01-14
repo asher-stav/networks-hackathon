@@ -1,23 +1,35 @@
+import sys
+import threading
+
 from client import Client
 
+PORT_IDX = 1
+
 def main() -> None:
-    data_size: int
-    tcp_connections_num: int
-    udp_connections_num: int
+    __port: int
+    __data_size: int
+    __tcp_connections_num: int
+    __udp_connections_num: int
+    try:
+        __port = int(sys.argv[PORT_IDX])
+    except Exception:
+        print("Invalid command line argument, missing port number.")
+        return
 
     # Gets the data size, TCP connections number and UDP connections number from the user
-    data_size = get_data_size()
-    tcp_connections_num = get_connections_num("TCP")
-    udp_connections_num = get_connections_num("UDP")
+    __data_size = get_data_size()
+    __tcp_connections_num = get_connections_num("TCP")
+    __udp_connections_num = get_connections_num("UDP")
 
     # Initializes the client
-    client = Client(data_size, tcp_connections_num, udp_connections_num)
+    client = Client(__data_size, __port, __tcp_connections_num, __udp_connections_num)
     # Runs the client
-    client.run()
+    threading.Thread(target=client.run(), args=()).start()
     input("Press any key to shutdown the client, this will prevent further connections")
     client.shutdown()
     
 def get_data_size() -> int:
+    data_size: int
     user_choice: int = input("""what unit would you like to enter the file size in?
 1) bytes
 2) kilobytes
