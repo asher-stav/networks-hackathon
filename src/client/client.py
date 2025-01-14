@@ -37,12 +37,14 @@ class Client:
     A class representing a client that can connect to servers and run speed-tests on them, both with UDP and TCP connections.
     In addition, will collect interesting data about the servers and the connections.
     """
+    __port: int
     __shutdown: bool
     __data_size: int
     __tcp_connections_num: int
     __udp_connections_num: int
     
-    def __init__(self, data_size: int, tcp_connections_num: int, udp_connections_num: int):
+    def __init__(self, port: int, data_size: int, tcp_connections_num: int, udp_connections_num: int):
+        self.__port = port
         self.__shutdown = False
         self.__data_size = data_size
         self.__tcp_connections_num = tcp_connections_num
@@ -59,24 +61,25 @@ class Client:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         # Enable reusing the port
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        # Bind the socket to the port - route -> 1 up in the keyboard ;)
-        sock.bind(("", 49753))
+        # Bind the socket to the port
+        sock.bind(("", self.__port))
         while not self.__shutdown:
             # data from the server
             data: bytes
             # address and port of the server
             addr: tuple[str, int]
-            # receive data from the server, 10 bytes - length of the message,
             # purposefully set 1 byte more than the message length to check for errors
             # recvfrom is a blocking call - no busy waiting.
-            data, addr = sock.recvfrom(10)
-            # 9 bytes is the expected size of the offer message.
-            # 0xabcddcba is the magic cookie
-            # 0x2 is the offer message type
-            if(len(data) == 9 & data[0:4] == 0xabcddcba & data[4] == 0x2):
+            data, addr = sock.recvfrom(OFFER_MSG_LEN + 1)
+            # check for correct offer message structure and values.
+            if(len(data) == OFFER_MSG_LEN &
+                data[COOKIE_INDEX:COOKIE_INDEX+COOKIE_LEN] == COOKIE &
+                  data[TYPE_INDEX] == TYPE_OFFER):
                 # H for unsigned short (2 bytes)
                 # < for little endian
-                self.request_file(addr[0], struct.unpack("<H", data[6:8])[0], struct.unpack("<H", data[8:10])[0])
+                self.request_file(addr[0],
+                                   struct.unpack("<H", data[OFFER_UDP_IDX:OFFER_UDP_IDX+OFFER_UDP_LEN])[0],
+                                   struct.unpack("<H", data[OFFER_TCP_IDX:OFFER_TCP_IDX+OFFER_TCP_LEN])[0])
             
 
     def shutdown(self) -> None:
