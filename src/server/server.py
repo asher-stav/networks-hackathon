@@ -14,6 +14,8 @@ REQUEST_COOKIE_INDEX = 0
 REQUEST_TYPE_INDEX = 4
 REQUEST_FILE_SIZE_INDEX = 5
 
+MAX_PAYLOAD_SIZE = 1000
+
 BROADCAST_IP = '255.255.255.255'
 
 class Server:
@@ -21,7 +23,6 @@ class Server:
     Server class that listens for incoming connections from clients in either UDP or TCP.
     When a client requests, the server sends an amount of data as requested.
     """
-    __shutdown: bool
     __udp_port: int
     __tcp_port: int
     __broadcast_port: int
@@ -29,23 +30,12 @@ class Server:
     __offer_sock: socket.socket
     __udp_sock: socket.socket
     __tcp_sock: socket.socket
-
-    __shutdown_lock: threading.Lock
     
     def __init__(self, udp_port: int, tcp_port: int, broadcast_port: int):
         self.__shutdown = False
         self.__udp_port = udp_port
         self.__tcp_port = tcp_port
         self.__broadcast_port = broadcast_port
-        self.__shutdown_lock = threading.Lock()
-
-    def is_shutdown(self) -> bool:
-        shutdown: bool
-        self.__shutdown_lock.acquire()
-        shutdown = self.__shutdown
-        self.__shutdown_lock.release()
-
-        return shutdown
     
     def listening(self):
         # Open UDP server
@@ -74,7 +64,7 @@ class Server:
         tcp_thread.start()
 
         # Open offer thread
-        self.__offer_sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        self.__offer_sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             self.__offer_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             # self.__offer_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
@@ -95,9 +85,7 @@ class Server:
         Finishes handling existing connections before termination
         """
         print('Terminating server...')
-        self.__shutdown_lock.acquire()
         self.__shutdown = True
-        self.__shutdown_lock.release()
 
         self.__offer_sock.close()
         # Enable UDP & TCP listeners to wrap up connections - close only reading from socket
@@ -108,7 +96,7 @@ class Server:
         """
         Sends offers to connect to the server every second
         """
-        while not self.is_shutdown():
+        while not self.__shutdown:
             self.send_udp_offer()
             time.sleep(1)
         print('Stopped sending offers')
@@ -131,7 +119,7 @@ class Server:
         
     def listen_udp(self):
         try:
-            while not self.is_shutdown():
+            while not self.__shutdown:
                 data, address = self.__udp_sock.recvfrom(1024)
                 print(f'Accepted UDP client {address}')
                 threading.Thread(target=self.handle_udp_connection, args=(data, address)).start()
@@ -145,7 +133,7 @@ class Server:
         try:
             self.__tcp_sock.listen()
 
-            while not self.is_shutdown():
+            while not self.__shutdown:
                 client_sock, address = self.__tcp_sock.accept()
                 print(f'Accepted TCP client {address}')
                 threading.Thread(target=self.handle_tcp_connection, args=(client_sock, )).start()
@@ -171,10 +159,7 @@ class Server:
         
         file_size: int = struct.unpack('Q', data[REQUEST_FILE_SIZE_INDEX:REQUEST_MESSAGE_LEN])[0]
 
-        # The client receives at most 1024 bytes, and the headers length is
-        # 21 bytes. Therefore, the max payload size is 1003
-        max_payload_size: int = 1003
-        segments_amount: int = (file_size // max_payload_size) + 1
+        segments_amount: int = (file_size // MAX_PAYLOAD_SIZE) + 1
         message_start: bytes = struct.pack('I', COOKIE) + struct.pack('B', UDP_PAYLOAD_MSG_CODE) + \
             struct.pack('Q', segments_amount)
 
@@ -186,13 +171,12 @@ class Server:
             message: bytes = b''
             message += message_start
             message += struct.pack('Q', curr_segment)
-            curr_payload: int = min(max_payload_size, file_size - data_sent)
+            curr_payload: int = min(MAX_PAYLOAD_SIZE, file_size - data_sent)
             message += ('a' * curr_payload).encode()
             try:
                 sock.sendto(message, address)
             except Exception as e:
                 print(f'Error: failed to send segment number {curr_segment} to udp client: {e}')
-            # print(f'Sent UDP segment number {curr_segment} to client {address}')
 
             curr_segment += 1
             data_sent += curr_payload

@@ -35,6 +35,7 @@ CURR_SEGMENT_LEN = 8
 PAYLOAD_DATA_IDX = 21
 # actual payload length is unknown, will be calculated in runtime.
 MAX_PAYLOAD_MSG_SIZE = 1024
+MAX_PAYLOAD_SIZE = 1000
 
 class Client:
     """
@@ -60,7 +61,7 @@ class Client:
         Runs the client until stopped, constantly looking for servers to run a speedtest on.
         """
         # AF_INET - IPv4, SOCK_DGRAM - UDP
-        self.__offer_sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        self.__offer_sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         # Enable broadcasting on the socket
         self.__offer_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         # Enable reusing the port
@@ -180,9 +181,7 @@ class Client:
             sock.sendto(request_msg, addr)
             print(f'Sent request message of {req_data_size} bytes to server \
                   {server_addr}:{server_udp_port} via UDP.')
-            # max payload size is the payload total max size minus header length
-            max_payload_size: int = MAX_PAYLOAD_MSG_SIZE - 21
-            segments_amount: int = (req_data_size // max_payload_size) + 1
+            segments_amount: int = (req_data_size // MAX_PAYLOAD_SIZE) + 1
             received_segments_count: int = 0
             curr_segment_id: int = 0
 
