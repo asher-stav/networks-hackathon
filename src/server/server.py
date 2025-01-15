@@ -174,31 +174,31 @@ class Server:
             return
         
         file_size: int = struct.unpack('Q', data[REQUEST_FILE_SIZE_INDEX:REQUEST_MESSAGE_LEN])[0]
-        print(file_size)
 
-        segments_amount: int = Server.get_udp_segments_amount(file_size)
-        single_segment_payload: int = file_size // segments_amount
+        # The client receives at most 1024 bytes, and the headers length is
+        # 21 bytes. Therefore, the max payload size is 1003
+        max_payload_size: int = 1003
+        segments_amount: int = (file_size // max_payload_size) + 1
         message_start: bytes = struct.pack('I', COOKIE) + struct.pack('B', UDP_PAYLOAD_MSG_CODE) + \
             struct.pack('Q', segments_amount)
 
-        for curr_segment in range(segments_amount):
+        data_sent: int = 0
+        curr_segment = 0
+
+        while data_sent < file_size:
             message: bytes = b''
             message += message_start
             message += struct.pack('Q', curr_segment)
-            message += ('a' * single_segment_payload).encode()
+            curr_payload: int = min(max_payload_size, file_size - data_sent)
+            message += ('a' * curr_payload).encode()
             try:
-                print(len(message))
                 self.__udp_sock.sendto(message, address)
             except Exception as e:
                 print(f'Error: failed to send segment number {curr_segment} to udp client: {e}')
             print(f'Sent UDP segment number {curr_segment} to client {address}')
 
-    @staticmethod
-    def get_udp_segments_amount(file_size: int) -> int:
-        """
-        TODO: return number of segments to send based on file size
-        """
-        return 1
+            curr_segment += 1
+            data_sent += curr_payload
 
     def handle_tcp_connection(self, client_sock: socket.socket) -> None:
         bytes_amount: int = 0
