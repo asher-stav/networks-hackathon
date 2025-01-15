@@ -1,4 +1,6 @@
 import sys
+import threading
+import signal
 
 from server import Server
 
@@ -21,10 +23,13 @@ def main() -> None:
         return
     
     s: Server = Server(udp_port, tcp_port, broadcast_port)
-    try:
-        s.listening()
-    except KeyboardInterrupt:
-        s.shutdown()
+    print('Starting server. Press any key to terminate')
+    threading.Thread(target=s.listening).start()
+    threading.Thread(target=shutdown, args=(s, )).start()
+
+def shutdown(s: Server) -> None:
+    input()
+    s.shutdown()
 
 
 if __name__ == '__main__':
