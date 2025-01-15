@@ -10,6 +10,7 @@ color_map = {
     ' ': (0, 0, 0)         # Black (for whitespace)
 }
 
+__stop: bool = False
 parsed_pixels: str = ''
 lines: int = 0
 line_idx: int = 0
@@ -100,7 +101,12 @@ pixels_raw = [
     ['w9', 'g8', 'w7']
 ]
 
-init()
-for _ in range(227):
-    time.sleep(0.01)
-    step()
+def start():
+    global __stop
+    while not __stop:
+        step()
+        time.sleep(0.01)
+
+def stop():
+    global __stop
+    __stop = True

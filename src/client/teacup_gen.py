@@ -1,7 +1,5 @@
 import time
 
-ROW_LENGTH = 24
-
 color_map = {
     'w': (255, 255, 255),  # White color
     'ws': (255, 255, 255),  # WhiteSpace
@@ -108,7 +106,12 @@ pixels_raw = [
 ]
 
 
-init()
-for _ in range(405):
-    time.sleep(0.01)
-    step()
+def start():
+    global __stop
+    while not __stop:
+        step()
+        time.sleep(0.01)
+
+def stop():
+    global __stop
+    __stop = True
