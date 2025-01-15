@@ -1,3 +1,4 @@
+from pydoc import cli
 import sys
 import threading
 
@@ -24,8 +25,12 @@ def main() -> None:
     # Initializes the client
     client = Client(port, data_size, tcp_connections_num, udp_connections_num)
     # Runs the client
-    threading.Thread(target=client.run(), args=()).start()
-    input("Press any key to shutdown the client, this will prevent further connections")
+    print('Starting client. Press any key to terminate')
+    threading.Thread(target=client.run, args=()).start()
+    threading.Thread(target=shutdown, args=(client, )).start()
+
+def shutdown(client: Client) -> None:
+    input()
     client.shutdown()
     
 def get_data_size() -> int:

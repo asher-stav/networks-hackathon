@@ -24,15 +24,8 @@ def main() -> None:
     
     s: Server = Server(udp_port, tcp_port, broadcast_port)
     print('Starting server. Press any key to terminate')
+    threading.Thread(target=s.listening).start()
     threading.Thread(target=shutdown, args=(s, )).start()
-    t = threading.Thread(target=s.listening())
-    t.start()
-    # t.join()
-
-    # try:
-    # except KeyboardInterrupt:
-    #     s.shutdown()
-    
 
 def shutdown(s: Server) -> None:
     input()

@@ -196,7 +196,7 @@ class Server:
 
             curr_segment += 1
             data_sent += curr_payload
-        print('3 out')
+        print(f'Finished sending data in UDP connection ${address}')
 
     def handle_tcp_connection(self, client_sock: socket.socket) -> None:
         bytes_amount: int = 0
@@ -222,7 +222,8 @@ class Server:
                 sent_data += client_sock.send(('a' * min(1024, bytes_amount - sent_data)).encode())
             except Exception:
                 print(f'Error: failed to send data to tcp client!')
-                break
+                client_sock.close()
+                return
             
-        print(f'Sent TCP packet to client')
         client_sock.close()
+        print(f'Finished sending data in TCP connection')

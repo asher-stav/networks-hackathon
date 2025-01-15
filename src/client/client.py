@@ -41,6 +41,7 @@ class Client:
     A class representing a client that can connect to servers and run speed-tests on them, both with UDP and TCP connections.
     In addition, will collect interesting data about the servers and the connections.
     """
+    __offer_sock: socket.socket
     __port: int
     __shutdown: bool
     __data_size: bytes
@@ -59,38 +60,41 @@ class Client:
         Runs the client until stopped, constantly looking for servers to run a speedtest on.
         """
         # AF_INET - IPv4, SOCK_DGRAM - UDP
-        sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        self.__offer_sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         # Enable broadcasting on the socket
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        self.__offer_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         # Enable reusing the port
         # sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        sock.bind(('', self.__port))
+        self.__offer_sock.bind(('', self.__port))
 
         print ("Client started, listening for offer requests...")
         
-        while not self.__shutdown:
-            data: bytes
-            addr: tuple[str, int]
-            # purposefully set 1 byte more than the message length to check for errors
-            data, addr = sock.recvfrom(OFFER_MSG_LEN)
+        try:
+            while not self.__shutdown:
+                data: bytes
+                addr: tuple[str, int]
+                # purposefully set 1 byte more than the message length to check for errors
+                data, addr = self.__offer_sock.recvfrom(OFFER_MSG_LEN)
 
-            # check for correct offer message structure and values.
-            if len(data) == OFFER_MSG_LEN:
-                cookie = struct.unpack("I", data[COOKIE_IDX:COOKIE_IDX+COOKIE_LEN])[0]
-                type = struct.unpack("B", data[TYPE_IDX:TYPE_IDX+TYPE_LEN])[0]
-                if cookie == COOKIE and type == TYPE_OFFER:
-                    udp_port: int = struct.unpack("H", data[OFFER_UDP_IDX:OFFER_UDP_IDX+OFFER_UDP_LEN])[0]
-                    tcp_port: int = struct.unpack("H", data[OFFER_TCP_IDX:OFFER_TCP_IDX+OFFER_TCP_LEN])[0]
-                    request_thread = threading.Thread(target=self.request_file, args=(addr[0],
-                                    udp_port, tcp_port, ))
-                    request_thread.start()
-                    request_thread.join()
-                    print('All transfers complete, listening to offer requests')
+                # check for correct offer message structure and values.
+                if len(data) == OFFER_MSG_LEN:
+                    cookie = struct.unpack("I", data[COOKIE_IDX:COOKIE_IDX+COOKIE_LEN])[0]
+                    type = struct.unpack("B", data[TYPE_IDX:TYPE_IDX+TYPE_LEN])[0]
+                    if cookie == COOKIE and type == TYPE_OFFER:
+                        udp_port: int = struct.unpack("H", data[OFFER_UDP_IDX:OFFER_UDP_IDX+OFFER_UDP_LEN])[0]
+                        tcp_port: int = struct.unpack("H", data[OFFER_TCP_IDX:OFFER_TCP_IDX+OFFER_TCP_LEN])[0]
+                        request_thread = threading.Thread(target=self.request_file, args=(addr[0],
+                                        udp_port, tcp_port, ))
+                        request_thread.start()
+                        request_thread.join()
+                        print('All transfers complete, listening to offer requests')
+                    else:
+                        print("Received invalid cookie or msg type")
                 else:
-                    print("Received invalid cookie or msg type")
-            else:
-                print("Received msg of unexpected length")
-        sock.close()
+                    print("Received msg of unexpected length")
+        except:
+            print('Failed to receive offer')
+        self.__offer_sock.close()
             
 
     def shutdown(self) -> None:
@@ -98,7 +102,9 @@ class Client:
         Shuts down the client, preventing it from receiving further offers.
         If the client runs a task currently, it will finish it before termination.
         """
+        print('Terminating client...')
         self.__shutdown = True
+        self.__offer_sock.close()
     
     def request_file(self, server_addr: str, server_udp_port: int, server_tcp_port: int) -> None:
         tcp_threads: list[threading.Thread] = []
