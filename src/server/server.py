@@ -3,6 +3,7 @@ import struct
 import threading
 import time
 
+import teapot_gen
 import logger
 
 
@@ -85,6 +86,8 @@ class Server:
         offer_thread.start()
 
         logger.info(f'Server started, listening on IP address {socket.gethostbyname(socket.gethostname())}')
+        teapot_gen.init()
+        threading.Thread(target=teapot_gen.start).start()
 
     def shutdown(self) -> None:
         """
@@ -98,6 +101,7 @@ class Server:
         # Enable UDP & TCP listeners to wrap up connections - close only reading from socket
         self.__tcp_sock.close()
         self.__udp_sock.close()
+        teapot_gen.stop()
 
     def announce_offers(self) -> None:
         """
@@ -131,6 +135,7 @@ class Server:
         try:
             while not self.__shutdown:
                 data, address = self.__udp_sock.recvfrom(MAX_UDP_MESSAGE_LEN)
+                teapot_gen.stop()
                 logger.debugging(f'Accepted UDP client {address}')
                 threading.Thread(target=self.handle_udp_connection, args=(data, address)).start()
         except:
@@ -147,6 +152,7 @@ class Server:
 
             while not self.__shutdown:
                 client_sock, address = self.__tcp_sock.accept()
+                teapot_gen.stop()
                 logger.debugging(f'Accepted TCP client {address}')
                 threading.Thread(target=self.handle_tcp_connection, args=(client_sock, )).start()
         except:

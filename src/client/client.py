@@ -4,6 +4,7 @@ import struct
 import threading
 import time
 
+import teacup_gen
 import logger
 
 BYTE_SIZE = 8
@@ -72,13 +73,16 @@ class Client:
         self.__offer_sock.bind(('', self.__port))
 
         logger.info("Client started, listening for offer requests...")
+        teacup_gen.init()
         
         try:
             while not self.__shutdown:
                 data: bytes
                 addr: tuple[str, int]
+                threading.Thread(target=teacup_gen.start).start()
                 # purposefully set 1 byte more than the message length to check for errors
                 data, addr = self.__offer_sock.recvfrom(OFFER_MSG_LEN)
+                teacup_gen.stop()
 
                 # check for correct offer message structure and values.
                 if len(data) == OFFER_MSG_LEN:
@@ -109,6 +113,7 @@ class Client:
         logger.info('Terminating client...')
         self.__shutdown = True
         self.__offer_sock.close()
+        teacup_gen.stop()
     
     def request_file(self, server_addr: str, server_udp_port: int, server_tcp_port: int) -> None:
         tcp_threads: list[threading.Thread] = []
