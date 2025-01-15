@@ -8,12 +8,13 @@ COOKIE = 0xabcddcba
 UDP_OFFER_MSG_CODE = 0x2
 UDP_REQUEST_MSG_CODE = 0x3
 UDP_PAYLOAD_MSG_CODE = 0x4
-
+# Constants for UDP request message type
 REQUEST_MESSAGE_LEN = 13
 REQUEST_COOKIE_INDEX = 0
 REQUEST_TYPE_INDEX = 4
 REQUEST_FILE_SIZE_INDEX = 5
 
+MAX_UDP_MESSAGE_LEN = 1024
 MAX_PAYLOAD_SIZE = 1000
 
 BROADCAST_IP = '255.255.255.255'
@@ -37,7 +38,11 @@ class Server:
         self.__tcp_port = tcp_port
         self.__broadcast_port = broadcast_port
     
-    def listening(self):
+    def run(self) -> None:
+        """
+        Runs the server: starts UDP and TCP servers, and starts broadcasting
+        offer messages
+        """
         # Open UDP server
         self.__udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
@@ -74,7 +79,7 @@ class Server:
             self.__tcp_sock.close()
             self.__offer_sock.close()
             return
-        offer_thread: threading.Thread = threading.Thread(target=self.announcer)
+        offer_thread: threading.Thread = threading.Thread(target=self.announce_offers)
         offer_thread.start()
 
         print(f'Server started, listening on IP address {socket.gethostbyname(socket.gethostname())}')
@@ -92,9 +97,9 @@ class Server:
         self.__tcp_sock.close()
         self.__udp_sock.close()
 
-    def announcer(self) -> None:
+    def announce_offers(self) -> None:
         """
-        Sends offers to connect to the server every second
+        Sends offers to connect to the server every one second
         """
         while not self.__shutdown:
             self.send_udp_offer()
@@ -117,19 +122,24 @@ class Server:
         message += struct.pack('H', self.__tcp_port)
         self.__offer_sock.sendto(message, (BROADCAST_IP, self.__broadcast_port))
         
-    def listen_udp(self):
+    def listen_udp(self) -> None:
+        """
+        Listens for UDP requests from clients
+        """
         try:
             while not self.__shutdown:
-                data, address = self.__udp_sock.recvfrom(1024)
+                data, address = self.__udp_sock.recvfrom(MAX_UDP_MESSAGE_LEN)
                 print(f'Accepted UDP client {address}')
                 threading.Thread(target=self.handle_udp_connection, args=(data, address)).start()
-        except Exception as e:
-            print(e)
+        except:
             print('Error: failed to receive new UDP message. Wrapping up UDP server...')
             self.__udp_sock.close()
         print('Closed UDP server')
 
     def listen_tcp(self):
+        """
+        Listens for TCP connections from clients
+        """
         try:
             self.__tcp_sock.listen()
 
@@ -143,6 +153,11 @@ class Server:
         print('Closed TCP server')
 
     def handle_udp_connection(self, data: bytes, address) -> None:
+        """
+        Handles a UDP client request
+        After processing the request, sends UDP packets according to the requested
+        file size
+        """
         if(len(data) < REQUEST_MESSAGE_LEN):
             print('Error: received invalid message length from UDP client!')
             return
@@ -183,6 +198,10 @@ class Server:
         print(f'Finished sending data in UDP connection ${address}')
 
     def handle_tcp_connection(self, client_sock: socket.socket) -> None:
+        """
+        Handles a TCP client request
+        After processing the request, sends bytes as the requested file size
+        """
         bytes_amount: int = 0
         curr_char: str = ''
         while curr_char != '\n':
