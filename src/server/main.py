@@ -1,6 +1,7 @@
 import sys
 import threading
 
+import logger
 from server import Server
 
 # command line arguments indexes
@@ -19,11 +20,11 @@ def main() -> None:
         tcp_port = int(sys.argv[TCP_PORT_INDEX])
         broadcast_port = int(sys.argv[BROADCAST_PORT_INDEX])
     except Exception:
-        print("Invalid command line arguments. Format: <udp_port> <tcp_port> <broadcast_port>")
+        logger.error("Invalid command line arguments. Format: <udp_port> <tcp_port> <broadcast_port>")
         return
     
     server: Server = Server(udp_port, tcp_port, broadcast_port)
-    print('Starting server. Press any key to terminate')
+    logger.info('Starting server. Press any key to terminate')
     threading.Thread(target=server.run).start()
     threading.Thread(target=shutdown, args=(server, )).start()
 
