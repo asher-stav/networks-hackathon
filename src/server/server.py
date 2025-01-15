@@ -2,6 +2,7 @@ import socket
 import struct
 import threading
 import time
+import ipaddress
 
 import teapot_gen
 import logger
@@ -20,8 +21,6 @@ REQUEST_FILE_SIZE_INDEX = 5
 MAX_UDP_MESSAGE_LEN = 1024
 MAX_PAYLOAD_SIZE = 1000
 
-BROADCAST_IP = '255.255.255.255'
-
 class Server:
     """
     Server class that listens for incoming connections from clients in either UDP or TCP.
@@ -34,18 +33,29 @@ class Server:
     __offer_sock: socket.socket
     __udp_sock: socket.socket
     __tcp_sock: socket.socket
+
+    __subnetmask: str
+    broadcast_ip: str
     
-    def __init__(self, udp_port: int, tcp_port: int, broadcast_port: int):
+    def __init__(self, udp_port: int, tcp_port: int, broadcast_port: int,
+                 subnetmask: str):
         self.__shutdown = False
         self.__udp_port = udp_port
         self.__tcp_port = tcp_port
         self.__broadcast_port = broadcast_port
+        self.__subnetmask = subnetmask
+        self.broadcast_ip = ''
     
     def run(self) -> None:
         """
         Runs the server: starts UDP and TCP servers, and starts broadcasting
         offer messages
         """
+        # resolve server ip and broadcast ip
+        server_ip: str = socket.gethostbyname(socket.gethostname())
+        network_portion: str = ('.'.join(server_ip.split('.')[:-1])) + '.0'
+        self.broadcast_ip = str(ipaddress.IPv4Network(f'{network_portion}/{self.__subnetmask}').broadcast_address)
+
         # Open UDP server
         self.__udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
@@ -85,7 +95,9 @@ class Server:
         offer_thread: threading.Thread = threading.Thread(target=self.announce_offers)
         offer_thread.start()
 
-        logger.info(f'Server started, listening on IP address {socket.gethostbyname(socket.gethostname())}')
+        logger.info(f'Broadcasting to address {self.broadcast_ip}')
+
+        logger.info(f'Server started, listening on IP address {server_ip}')
         teapot_gen.init()
         threading.Thread(target=teapot_gen.start).start()
 
@@ -126,7 +138,7 @@ class Server:
         message += struct.pack('B', UDP_OFFER_MSG_CODE)
         message += struct.pack('H', self.__udp_port)
         message += struct.pack('H', self.__tcp_port)
-        self.__offer_sock.sendto(message, (BROADCAST_IP, self.__broadcast_port))
+        self.__offer_sock.sendto(message, (self.broadcast_ip, self.__broadcast_port))
         
     def listen_udp(self) -> None:
         """
