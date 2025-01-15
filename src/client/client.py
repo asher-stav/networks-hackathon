@@ -39,8 +39,9 @@ MAX_PAYLOAD_SIZE = 1000
 
 class Client:
     """
-    A class representing a client that can connect to servers and run speed-tests on them, both with UDP and TCP connections.
-    In addition, will collect interesting data about the servers and the connections.
+    A class representing a client that can connect to servers and run speed-tests on them, 
+    both with UDP and TCP connections.
+    In addition, collects data about the servers and the connections.
     """
     __offer_sock: socket.socket
     __port: int
@@ -60,7 +61,6 @@ class Client:
         """
         Runs the client until stopped, constantly looking for servers to run a speedtest on.
         """
-        # AF_INET - IPv4, SOCK_DGRAM - UDP
         self.__offer_sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         # Enable broadcasting on the socket
         self.__offer_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -79,8 +79,8 @@ class Client:
 
                 # check for correct offer message structure and values.
                 if len(data) == OFFER_MSG_LEN:
-                    cookie = struct.unpack("I", data[COOKIE_IDX:COOKIE_IDX+COOKIE_LEN])[0]
-                    type = struct.unpack("B", data[TYPE_IDX:TYPE_IDX+TYPE_LEN])[0]
+                    cookie: int = struct.unpack("I", data[COOKIE_IDX:COOKIE_IDX+COOKIE_LEN])[0]
+                    type: int = struct.unpack("B", data[TYPE_IDX:TYPE_IDX+TYPE_LEN])[0]
                     if cookie == COOKIE and type == TYPE_OFFER:
                         udp_port: int = struct.unpack("H", data[OFFER_UDP_IDX:OFFER_UDP_IDX+OFFER_UDP_LEN])[0]
                         tcp_port: int = struct.unpack("H", data[OFFER_TCP_IDX:OFFER_TCP_IDX+OFFER_TCP_LEN])[0]
@@ -90,13 +90,13 @@ class Client:
                         request_thread.join()
                         print('All transfers complete, listening to offer requests')
                     else:
-                        print("Received invalid cookie or msg type")
+                        print("Received invalid cookie or message type")
                 else:
-                    print("Received msg of unexpected length")
+                    print("Received message of unexpected length")
         except:
             print('Failed to receive offer')
+
         self.__offer_sock.close()
-            
 
     def shutdown(self) -> None:
         """
@@ -110,12 +110,14 @@ class Client:
     def request_file(self, server_addr: str, server_udp_port: int, server_tcp_port: int) -> None:
         tcp_threads: list[threading.Thread] = []
         for i in range(self.__tcp_connections_num):
-            t = threading.Thread(target=self.tcp_connect, args=(server_addr, server_tcp_port, i + 1, ))
+            t = threading.Thread(target=self.tcp_connect,
+                                args=(server_addr, server_tcp_port, i + 1, ))
             t.start()
             tcp_threads.append(t)
         udp_threads: list[threading.Thread] = []
         for i in range(self.__udp_connections_num):
-            t = threading.Thread(target=self.udp_connect, args=(server_addr, server_udp_port, i + 1, ))
+            t = threading.Thread(target=self.udp_connect, 
+                                 args=(server_addr, server_udp_port, i + 1, ))
             t.start()
             udp_threads.append(t)
 
@@ -156,10 +158,7 @@ class Client:
             end_time: float = time.time()
             transfer_time: float = end_time - start_time
             transfer_rate: float = float('inf') if transfer_time == 0 else BYTE_SIZE * req_data_size / transfer_time
-
-            print(f'TCP transfer #{connection_num} finished, '
-                  f'total time: {transfer_time} seconds, '
-                  f'total speed: {transfer_rate} bits/second')
+            Client.print_tcp_connection_metrics(connection_num, transfer_time, transfer_rate)
 
         except socket.error as e:
             print(f"TCP connection error: {e}")
@@ -167,12 +166,24 @@ class Client:
         finally:
             sock.close()
             print("Connection closed.")
+
+    @staticmethod
+    def print_tcp_connection_metrics(connection_num: int, transfer_time: float,
+                                     transfer_rate: float) -> None:
+        """
+        Prints TCP connection metrics: connection number, total transfer time
+        and transfer rate
+        """
+        print(f'TCP transfer #{connection_num} finished, '
+                f'total time: {transfer_time} seconds, '
+                f'total speed: {transfer_rate} bits/second')
+        
     
     def udp_connect(self, server_addr: str, server_udp_port: int, connection_num: int) -> None:
         sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         addr: tuple[str, int] = (server_addr, server_udp_port)
-        cookie = struct.pack('I', COOKIE)
-        type_offer = struct.pack('B', TYPE_REQUEST)
+        cookie: bytes = struct.pack('I', COOKIE)
+        type_offer: bytes = struct.pack('B', TYPE_REQUEST)
         request_msg: bytes = cookie + type_offer + self.__data_size
         req_data_size: int = struct.unpack("Q", self.__data_size)[0]
         data_left: int = req_data_size
@@ -213,12 +224,21 @@ class Client:
             transfer_time: float = end_time - start_time
 
             transfer_rate: float = float('inf') if transfer_time == 0 else BYTE_SIZE * req_data_size / transfer_time
-            print (f'UDP transfer #{connection_num} finished, '
-                    f'total time: {transfer_time} seconds, '
-                    f'total speed: {transfer_rate} bits/second, '
-                    f'percentage of packets received successfully: '
-                    f'{(received_segments_count / segments_amount) * 100}%')
+            Client.print_udp_connection_metrics(connection_num, transfer_time,
+                        transfer_rate, (received_segments_count / segments_amount) * 100)
 
         except socket.timeout:
             print (f'UDP connection to server {server_addr}:{server_udp_port} timed out.')
             return
+        
+    @staticmethod
+    def print_udp_connection_metrics(connection_num: int, transfer_time: float,
+                                     transfer_rate: float, success_percent: float) -> None:
+        """
+        Prints UDP connection metrics: connection number, total transfer time,
+        transfer rate and what percent of packets received
+        """
+        print(f'UDP transfer #{connection_num} finished, '
+                f'total time: {transfer_time} seconds, '
+                f'total speed: {transfer_rate} bits/second, '
+                f'percentage of packets received successfully: {success_percent}%')

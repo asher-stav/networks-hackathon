@@ -1,9 +1,9 @@
 import sys
 import threading
-import signal
 
 from server import Server
 
+# command line arguments indexes
 UDP_PORT_INDEX = 1
 TCP_PORT_INDEX = 2
 BROADCAST_PORT_INDEX = 3
@@ -22,12 +22,15 @@ def main() -> None:
         print("Invalid command line arguments. Format: <udp_port> <tcp_port> <broadcast_port>")
         return
     
-    s: Server = Server(udp_port, tcp_port, broadcast_port)
+    server: Server = Server(udp_port, tcp_port, broadcast_port)
     print('Starting server. Press any key to terminate')
-    threading.Thread(target=s.listening).start()
-    threading.Thread(target=shutdown, args=(s, )).start()
+    threading.Thread(target=server.run).start()
+    threading.Thread(target=shutdown, args=(server, )).start()
 
 def shutdown(s: Server) -> None:
+    """
+    Listens for user input and then shuts down the server
+    """
     input()
     s.shutdown()
 
