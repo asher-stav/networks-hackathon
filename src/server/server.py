@@ -15,8 +15,10 @@ REQUEST_COOKIE_INDEX = 0
 REQUEST_TYPE_INDEX = 4
 REQUEST_FILE_SIZE_INDEX = 5
 
-BROADCAST_IP = '255.255.255.255'#'172.20.10.15'
+BROADCAST_IP = '255.255.255.255'
 
+UDP_RECEIVE_BUFFER_SIZE = 534
+UDP_SEND_BUFFER_SIZE = 534
 
 class Server:
     """
@@ -53,6 +55,8 @@ class Server:
         # Open UDP server
         self.__udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
+            self.__udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, UDP_RECEIVE_BUFFER_SIZE)
+            self.__udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, UDP_SEND_BUFFER_SIZE)
             self.__udp_sock.bind(('', self.__udp_port))
         except:
             print(f'Error: failed to bind UDP server to port {self.__udp_port}')
@@ -78,6 +82,8 @@ class Server:
         # Open offer thread
         self.__offer_sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         try:
+            self.__offer_sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, UDP_RECEIVE_BUFFER_SIZE)
+            self.__offer_sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, UDP_SEND_BUFFER_SIZE)
             self.__offer_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             # self.__offer_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
             #self.__offer_sock.bind(('', self.__broadcast_port))
@@ -180,12 +186,12 @@ class Server:
         segments_amount: int = Server.get_udp_segments_amount(file_size)
         single_segment_payload: int = file_size // segments_amount
         message_start: bytes = struct.pack('I', COOKIE) + struct.pack('B', UDP_PAYLOAD_MSG_CODE) + \
-            struct.pack('L', segments_amount)
+            struct.pack('Q', segments_amount)
 
         for curr_segment in range(segments_amount):
             message: bytes = b''
             message += message_start
-            message += struct.pack('L', curr_segment)
+            message += struct.pack('Q', curr_segment)
             message += ('a' * single_segment_payload).encode()
             try:
                 self.__udp_sock.sendto(message, address)
@@ -220,7 +226,7 @@ class Server:
 
         for i in range(bytes_amount):
             try:
-                client_sock.sendall('a')
+                client_sock.sendall('a'.encode())
             except Exception:
                 print(f'Error: failed to send byte number {i} to tcp client!')
                 break

@@ -35,6 +35,8 @@ PAYLOAD_DATA_IDX = 21
 # actual payload length is unknown, will be calculated in runtime.
 MAX_PAYLOAD_MSG_SIZE = 1024
 
+UDP_RECEIVE_BUFFER_SIZE = 512
+UDP_SEND_BUFFER_SIZE = 512
 
 class Client:
     """
@@ -59,11 +61,13 @@ class Client:
         Runs the client until stopped, constantly looking for servers to run a speedtest on.
         """
         print ("Client started, listening for offer requests...")
-        print(self.__tcp_connections_num, self.__udp_connections_num)
         # AF_INET - IPv4, SOCK_DGRAM - UDP
         sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         # Enable broadcasting on the socket
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, UDP_RECEIVE_BUFFER_SIZE)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, UDP_SEND_BUFFER_SIZE)
         # Enable reusing the port
         # sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
         sock.bind(('', self.__port))
@@ -116,7 +120,6 @@ class Client:
         
         req_data_size: int = struct.unpack("Q", self.__data_size)[0]
         request_msg: bytes = (str(req_data_size) + '\n').encode()
-        print(request_msg.decode())
         data_left: int = req_data_size
 
         try:
@@ -142,7 +145,7 @@ class Client:
 
             end_time: float = time.time()
             transfer_time: float = end_time - start_time
-            transfer_rate: float = BYTE_SIZE * req_data_size / transfer_time
+            transfer_rate: float = float('inf') if transfer_time == 0 else BYTE_SIZE * req_data_size / transfer_time
 
             print(f"TCP connection to server {server_addr}:{server_tcp_port} finished. "
                 f"Transfer rate: {transfer_rate} bits/sec.")
@@ -156,6 +159,8 @@ class Client:
     
     def udp_connect(self, server_addr: str, server_udp_port: int) -> None:
         sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, UDP_RECEIVE_BUFFER_SIZE)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, UDP_SEND_BUFFER_SIZE)
         addr: tuple[str, int] = (server_addr, server_udp_port)
         cookie = struct.pack('I', COOKIE)
         type_offer = struct.pack('H', TYPE_REQUEST)
@@ -165,11 +170,14 @@ class Client:
 
         try:
             sock.sendto(request_msg, addr)
-            print("Sent request message of {} bytes to server {}:{} via UDP.".format(req_data_size, server_addr, server_udp_port))
+            print(f'Sent request message of {req_data_size} bytes to server \
+                  {server_addr}:{server_udp_port} via UDP.')
             start_time: float = time.time()
 
             while(data_left > 0):
-                data, server = sock.recvfrom(MAX_PAYLOAD_MSG_SIZE)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, UDP_RECEIVE_BUFFER_SIZE)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, UDP_SEND_BUFFER_SIZE)
+                data, _ = sock.recvfrom(MAX_PAYLOAD_MSG_SIZE)
                 if not data:
                     print ("Did not receive data from the server.")
                     continue
@@ -189,12 +197,11 @@ class Client:
             
             end_time: float = time.time()
             transfer_time: float = end_time - start_time
-            transfer_rate: float = BYTE_SIZE*req_data_size / transfer_time
-            print ("UDP connection to server {}:{} finished. Transfer rate: {} bits/sec."
-                   .format(server_addr, server_udp_port, transfer_rate))
+
+            transfer_rate: float = float('inf') if transfer_time == 0 else BYTE_SIZE * req_data_size / transfer_time
+            print (f'UDP connection to server {server_addr}:{server_udp_port} finished. \
+                   Transfer rate: {transfer_rate} bits/sec.')
 
         except socket.timeout:
-            print ("UDP connection to server {}:{} timed out.".format(server_addr, server_udp_port))
+            print (f'UDP connection to server {server_addr}:{server_udp_port} timed out.')
             return
-
-        
