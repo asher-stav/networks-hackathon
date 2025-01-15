@@ -1,3 +1,4 @@
+from operator import add
 import socket
 import struct
 import threading
@@ -54,7 +55,7 @@ class Server:
         try:
             self.__udp_sock.bind(('', self.__udp_port))
         except:
-            print(f'Error: failed to bind TCP server to port {self.__tcp_port}')
+            print(f'Error: failed to bind UDP server to port {self.__tcp_port}')
             self.__udp_sock.close()
             return
 
@@ -66,7 +67,7 @@ class Server:
         try:
             self.__tcp_sock.bind(('', self.__tcp_port))
         except:
-            print(f'Error: failed to bind UDP server to port {self.__tcp_port}')
+            print(f'Error: failed to bind TCP server to port {self.__tcp_port}')
             self.__udp_sock.close()
             self.__tcp_sock.close()
             return
@@ -136,8 +137,10 @@ class Server:
         try:
             while not self.is_shutdown():
                 data, address = self.__udp_sock.recvfrom(REQUEST_MESSAGE_LEN)
+                print(f'Accepted UDP client {address}')
                 threading.Thread(target=self.handle_udp_connection, args=(data, address)).start()
-        except:
+        except Exception as e:
+            print(e)
             print('Error: failed to receive new UDP message. Wrapping up UDP server...')
             # Wait some time for other threads to wrap up
             time.sleep(5)
@@ -158,17 +161,17 @@ class Server:
             self.__tcp_sock.close()
 
     def handle_udp_connection(self, data: bytes, address) -> None:
-        cookie: int = struct.unpack('I', data[REQUEST_COOKIE_INDEX:REQUEST_TYPE_INDEX])
+        cookie: int = struct.unpack('I', data[REQUEST_COOKIE_INDEX:REQUEST_TYPE_INDEX])[0]
         if cookie != COOKIE:
             print(f'Error: received invalid cookie: {cookie}')
             return
         
-        message_type: int = struct.unpack('B', data[REQUEST_TYPE_INDEX:REQUEST_FILE_SIZE_INDEX])
+        message_type: int = struct.unpack('B', data[REQUEST_TYPE_INDEX:REQUEST_FILE_SIZE_INDEX])[0]
         if message_type != UDP_REQUEST_MSG_CODE:
             print(f'Error: received invalid message type: {message_type}. Expected: {UDP_REQUEST_MSG_CODE}')
             return
         
-        file_size: int = struct.unpack('L', data[REQUEST_FILE_SIZE_INDEX:REQUEST_MESSAGE_LEN])
+        file_size: int = struct.unpack('L', data[REQUEST_FILE_SIZE_INDEX:REQUEST_MESSAGE_LEN])[0]
 
         segments_amount: int = Server.get_udp_segments_amount(file_size)
         single_segment_payload: int = file_size // segments_amount
@@ -190,7 +193,7 @@ class Server:
         """
         TODO: return number of segments to send based on file size
         """
-        pass
+        return 1
 
     def handle_tcp_connection(self, client_sock: socket.socket) -> None:
         bytes_amount: int = 0

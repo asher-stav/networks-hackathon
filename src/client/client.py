@@ -78,10 +78,16 @@ class Client:
                 cookie = struct.unpack("I", data[COOKIE_IDX:COOKIE_IDX+COOKIE_LEN])[0]
                 type = struct.unpack("B", data[TYPE_IDX:TYPE_IDX+TYPE_LEN])[0]
                 if cookie == COOKIE and type == TYPE_OFFER:
-                    # H for unsigned short (2 bytes)
-                    self.request_file(addr[0],
-                                    struct.unpack("H", data[OFFER_UDP_IDX:OFFER_UDP_IDX+OFFER_UDP_LEN])[0],
-                                    struct.unpack("H", data[OFFER_TCP_IDX:OFFER_TCP_IDX+OFFER_TCP_LEN])[0])
+                    udp_port: int = struct.unpack("H", data[OFFER_UDP_IDX:OFFER_UDP_IDX+OFFER_UDP_LEN])[0]
+                    tcp_port: int = struct.unpack("H", data[OFFER_TCP_IDX:OFFER_TCP_IDX+OFFER_TCP_LEN])[0]
+                    request_thread = threading.Thread(target=self.request_file, args=(addr[0],
+                                    udp_port, tcp_port, ))
+                    request_thread.start()
+                    request_thread.join()
+                    # # H for unsigned short (2 bytes)
+                    # self.request_file(addr[0],
+                    #                 struct.unpack("H", data[OFFER_UDP_IDX:OFFER_UDP_IDX+OFFER_UDP_LEN])[0],
+                    #                 struct.unpack("H", data[OFFER_TCP_IDX:OFFER_TCP_IDX+OFFER_TCP_LEN])[0])
                 else:
                     print("Received invalid cookie or msg type")
             else:
