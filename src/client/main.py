@@ -22,7 +22,7 @@ def main() -> None:
     __udp_connections_num = get_connections_num("UDP")
 
     # Initializes the client
-    client = Client(__data_size, __port, __tcp_connections_num, __udp_connections_num)
+    client = Client(__port, __data_size, __tcp_connections_num, __udp_connections_num)
     # Runs the client
     threading.Thread(target=client.run(), args=()).start()
     input("Press any key to shutdown the client, this will prevent further connections")

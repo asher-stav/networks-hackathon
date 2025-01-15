@@ -14,7 +14,7 @@ REQUEST_COOKIE_INDEX = 0
 REQUEST_TYPE_INDEX = 4
 REQUEST_FILE_SIZE_INDEX = 5
 
-BROADCAST_IP = '255.255.255.255'
+BROADCAST_IP = '255.255.255.255'#'172.20.10.15'
 
 
 class Server:
@@ -78,7 +78,7 @@ class Server:
         self.__offer_sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         try:
             self.__offer_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            self.__offer_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            # self.__offer_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
             #self.__offer_sock.bind(('', self.__broadcast_port))
         except:
             print(f'Error: failed to bind broadcast to port {self.__broadcast_port}')

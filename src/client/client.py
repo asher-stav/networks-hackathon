@@ -64,8 +64,8 @@ class Client:
         # Enable broadcasting on the socket
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         # Enable reusing the port
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        sock.bind(("", self.__port))
+        # sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        sock.bind(('', self.__port))
         while not self.__shutdown:
             data: bytes
             addr: tuple[str, int]
