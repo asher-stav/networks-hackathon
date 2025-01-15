@@ -55,7 +55,7 @@ class Server:
         try:
             self.__udp_sock.bind(('', self.__udp_port))
         except:
-            print(f'Error: failed to bind UDP server to port {self.__tcp_port}')
+            print(f'Error: failed to bind UDP server to port {self.__udp_port}')
             self.__udp_sock.close()
             return
 
@@ -136,7 +136,7 @@ class Server:
     def listen_udp(self):
         try:
             while not self.is_shutdown():
-                data, address = self.__udp_sock.recvfrom(REQUEST_MESSAGE_LEN)
+                data, address = self.__udp_sock.recvfrom(1024)
                 print(f'Accepted UDP client {address}')
                 threading.Thread(target=self.handle_udp_connection, args=(data, address)).start()
         except Exception as e:
@@ -161,6 +161,10 @@ class Server:
             self.__tcp_sock.close()
 
     def handle_udp_connection(self, data: bytes, address) -> None:
+        if(len(data) < REQUEST_MESSAGE_LEN):
+            print('Error: received invalid message length from UDP client!')
+            return
+        
         cookie: int = struct.unpack('I', data[REQUEST_COOKIE_INDEX:REQUEST_TYPE_INDEX])[0]
         if cookie != COOKIE:
             print(f'Error: received invalid cookie: {cookie}')
@@ -171,7 +175,7 @@ class Server:
             print(f'Error: received invalid message type: {message_type}. Expected: {UDP_REQUEST_MSG_CODE}')
             return
         
-        file_size: int = struct.unpack('L', data[REQUEST_FILE_SIZE_INDEX:REQUEST_MESSAGE_LEN])[0]
+        file_size: int = struct.unpack('Q', data[REQUEST_FILE_SIZE_INDEX:REQUEST_MESSAGE_LEN])[0]
 
         segments_amount: int = Server.get_udp_segments_amount(file_size)
         single_segment_payload: int = file_size // segments_amount
@@ -185,8 +189,8 @@ class Server:
             message += ('a' * single_segment_payload).encode()
             try:
                 self.__udp_sock.sendto(message, address)
-            except Exception:
-                print(f'Error: failed to send segment number {curr_segment} to udp client!')
+            except Exception as e:
+                print(f'Error: failed to send segment number {curr_segment} to udp client: {e}')
 
     @staticmethod
     def get_udp_segments_amount(file_size: int) -> int:
