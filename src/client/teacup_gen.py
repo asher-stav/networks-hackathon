@@ -1,4 +1,3 @@
-import sys
 import time
 
 ROW_LENGTH = 24
@@ -15,7 +14,7 @@ color_map = {
     ' ': (0, 0, 0)         # Black (for whitespace)
 }
 
-cup: str = ''
+parsed_pixels: str = ''
 lines: int = 0
 line_idx: int = 0
 inline_idx: int = 0
@@ -45,11 +44,11 @@ def parse_pixels(raw_list):
     
 
 def init():
-    global cup
-    global teacup_pixels_raw
+    global parsed_pixels
+    global pixels_raw
     global lines
-    cup = parse_pixels(teacup_pixels_raw)
-    lines = len(cup)
+    parsed_pixels = parse_pixels(pixels_raw)
+    lines = len(parsed_pixels)
     
 
 # Print teapot pixels with colored backgrounds
@@ -57,12 +56,12 @@ def step():
     while True:
         color = update_lines()
 
-        if color == 'ws':  # Treat 'w' as whitespace (no color, just reset)
+        if color == 'ws':  # Treat 'ws' as whitespace (no color, just reset)
             print("\033[0m  ", end ='')  # Reset color after whitespace
         else:
             r, g, b = color_map[color]
             ansi_code = rgb_to_ansi(r, g, b)  # Convert to ANSI color code
-            print(f"{ansi_code}  \033[0m", end='', flush=True)  # Add color background with spaces
+            print(f"{ansi_code}  \033[0m", end='', flush=True)  # print color
             break
 
 
@@ -70,21 +69,21 @@ def update_lines():
     global inline_idx
     global lines
     global line_idx
-    row = cup[line_idx]
+    row = parsed_pixels[line_idx]
     if inline_idx == len(row):
         inline_idx = 0
         line_idx += 1
         print()
-    if line_idx == len(cup):
+    if line_idx == len(parsed_pixels):
         line_idx = 0
-        row = cup[line_idx]
+        row = parsed_pixels[line_idx]
         print('\n' * 7)
     ret = row[inline_idx]
     inline_idx += 1
     return ret
 
-# Example teapot pixel data (use the format you provided with w12, g3, etc.)
-teacup_pixels_raw = [
+# teacup pixel data entered manually as a 2D array
+pixels_raw = [
     ['ws7', 'd7', 'ws14'],
     ['ws4', 'd3', 'b1', 'w6', 'd4', 'ws10'],
     ['ws2', 'd2', 'b7', 'w7', 'd3', 'ws7'],
@@ -109,7 +108,7 @@ teacup_pixels_raw = [
 ]
 
 
-# init()
-# for _ in range(300):
-#     time.sleep(0.1)
-#     step()
+init()
+for _ in range(405):
+    time.sleep(0.01)
+    step()

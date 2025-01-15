@@ -1,3 +1,4 @@
+import time
 
 color_map = {
     'w': (255, 255, 255),  # White color
@@ -9,6 +10,11 @@ color_map = {
     ' ': (0, 0, 0)         # Black (for whitespace)
 }
 
+parsed_pixels: str = ''
+lines: int = 0
+line_idx: int = 0
+inline_idx: int = 0
+
 # Function to convert RGB to ANSI escape code for terminal
 def rgb_to_ansi(r, g, b):
     return f"\033[48;2;{r};{g};{b}m"
@@ -19,27 +25,63 @@ def parse_pixels(raw_list):
     for row in raw_list:
         parsed_row = []
         for item in row:
-            color = item[0]  # Extract the color code ('w', 'g', etc.)
-            count = int(item[1:])  # Extract the number of repetitions
+            numStartIdx = 0
+            color = ''
+            for char in item:
+                if char.isalpha():
+                    color += char
+                    numStartIdx += 1
+                else:
+                    break
+            count = int(item[numStartIdx:])  # Extract the number of repetitions
             parsed_row.extend([color] * count)  # Repeat the color accordingly
         parsed_pixels.append(parsed_row)
     return parsed_pixels
+    
+
+def init():
+    global parsed_pixels
+    global pixels_raw
+    global lines
+    parsed_pixels = parse_pixels(pixels_raw)
+    lines = len(parsed_pixels)
+    
 
 # Print teapot pixels with colored backgrounds
-def print_colored_pixels(pixel_data):
-    for row in pixel_data:
-        line = ""
-        for color in row:
-            if color == 'w':  # Treat 'w' as whitespace (no color, just reset)
-                line += "\033[0m  "  # Reset color after whitespace
-            else:
-                r, g, b = color_map[color]
-                ansi_code = rgb_to_ansi(r, g, b)  # Convert to ANSI color code
-                line += f"{ansi_code}  "  # Add color background with spaces
-        print(line + "\033[0m")  # Reset color after printing the row
+def step():
+    while True:
+        color = update_lines()
 
-# Example teapot pixel data (use the format you provided with w12, g3, etc.)
-teapot_pixels_raw = [
+        if color == 'w':  # Treat 'w' as whitespace (no color, just reset)
+            print("\033[0m  ", end ='')  # Reset color after whitespace
+        else:
+            r, g, b = color_map[color]
+            ansi_code = rgb_to_ansi(r, g, b)  # Convert to ANSI color code
+            print(f"{ansi_code}  \033[0m", end='', flush=True)  # Print color
+            break
+
+
+def update_lines():
+    global inline_idx
+    global lines
+    global line_idx
+    row = parsed_pixels[line_idx]
+    if inline_idx == len(row):
+        inline_idx = 0
+        line_idx += 1
+        print()
+    if line_idx == len(parsed_pixels):
+        line_idx = 0
+        row = parsed_pixels[line_idx]
+        print('\n' * 7)
+    ret = row[inline_idx]
+    inline_idx += 1
+    return ret
+
+
+
+# teapot pixel data entered manually as a 2D array
+pixels_raw = [
     ['w12', 'g3', 'w9'],
     ['w11', 'g1', 'b3', 'g1', 'w8'],
     ['w9', 'g2', 'b5', 'g2', 'w6'],
@@ -58,8 +100,7 @@ teapot_pixels_raw = [
     ['w9', 'g8', 'w7']
 ]
 
-# Parse the input into the correct 2D array of pixels
-teapot_pixels = parse_pixels(teapot_pixels_raw)
-
-# Print the teapot with colored pixels
-print_colored_pixels(teapot_pixels)
+init()
+for _ in range(227):
+    time.sleep(0.01)
+    step()
