@@ -17,9 +17,6 @@ REQUEST_FILE_SIZE_INDEX = 5
 
 BROADCAST_IP = '255.255.255.255'
 
-UDP_RECEIVE_BUFFER_SIZE = 534
-UDP_SEND_BUFFER_SIZE = 534
-
 class Server:
     """
     Server class that listens for incoming connections from clients in either UDP or TCP.
@@ -55,8 +52,6 @@ class Server:
         # Open UDP server
         self.__udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
-            self.__udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, UDP_RECEIVE_BUFFER_SIZE)
-            self.__udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, UDP_SEND_BUFFER_SIZE)
             self.__udp_sock.bind(('', self.__udp_port))
         except:
             print(f'Error: failed to bind UDP server to port {self.__udp_port}')
@@ -82,11 +77,8 @@ class Server:
         # Open offer thread
         self.__offer_sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         try:
-            self.__offer_sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, UDP_RECEIVE_BUFFER_SIZE)
-            self.__offer_sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, UDP_SEND_BUFFER_SIZE)
             self.__offer_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             # self.__offer_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-            #self.__offer_sock.bind(('', self.__broadcast_port))
         except:
             print(f'Error: failed to bind broadcast to port {self.__broadcast_port}')
             self.__udp_sock.close()
@@ -182,6 +174,7 @@ class Server:
             return
         
         file_size: int = struct.unpack('Q', data[REQUEST_FILE_SIZE_INDEX:REQUEST_MESSAGE_LEN])[0]
+        print(file_size)
 
         segments_amount: int = Server.get_udp_segments_amount(file_size)
         single_segment_payload: int = file_size // segments_amount
@@ -194,6 +187,7 @@ class Server:
             message += struct.pack('Q', curr_segment)
             message += ('a' * single_segment_payload).encode()
             try:
+                print(len(message))
                 self.__udp_sock.sendto(message, address)
             except Exception as e:
                 print(f'Error: failed to send segment number {curr_segment} to udp client: {e}')
