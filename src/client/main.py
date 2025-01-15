@@ -1,4 +1,3 @@
-from pydoc import cli
 import sys
 import threading
 
@@ -30,10 +29,17 @@ def main() -> None:
     threading.Thread(target=shutdown, args=(client, )).start()
 
 def shutdown(client: Client) -> None:
+    """
+    Listens for user input and then shuts down the client
+    """
     input()
     client.shutdown()
     
 def get_data_size() -> int:
+    """
+    Gets the amount of data the client wants to request the server, according to the unit
+    (bytes, kilobytes, megabytes and gigabytes)
+    """
     data_size: int
     user_choice: int = input("""what unit would you like to enter the file size in?
 1) bytes
@@ -57,6 +63,10 @@ Input: """)
     return data_size
     
 def get_connections_num(connection_type: str) -> int:
+    """
+    Gets the amount of connections the client wants to make to the server
+    for the given type (TCP or UDP)
+    """
     connections_num: str = input(f"Enter amount of {connection_type} connections: ")
     if not connections_num.isnumeric():
         print("Invalid input, please enter a number")
