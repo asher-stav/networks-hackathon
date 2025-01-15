@@ -1,3 +1,8 @@
+import sys
+import time
+
+ROW_LENGTH = 24
+
 color_map = {
     'w': (255, 255, 255),  # White color
     'ws': (255, 255, 255),  # WhiteSpace
@@ -9,6 +14,11 @@ color_map = {
     'lp': (250, 231, 220),    # Pink
     ' ': (0, 0, 0)         # Black (for whitespace)
 }
+
+cup: str = ''
+lines: int = 0
+line_idx: int = 0
+inline_idx: int = 0
 
 # Function to convert RGB to ANSI escape code for terminal
 def rgb_to_ansi(r, g, b):
@@ -32,22 +42,49 @@ def parse_pixels(raw_list):
             parsed_row.extend([color] * count)  # Repeat the color accordingly
         parsed_pixels.append(parsed_row)
     return parsed_pixels
+    
+
+def init():
+    global cup
+    global teacup_pixels_raw
+    global lines
+    cup = parse_pixels(teacup_pixels_raw)
+    lines = len(cup)
+    
 
 # Print teapot pixels with colored backgrounds
-def print_colored_pixels(pixel_data):
-    for row in pixel_data:
-        line = ""
-        for color in row:
-            if color == 'ws':  # Treat 'w' as whitespace (no color, just reset)
-                line += "\033[0m  "  # Reset color after whitespace
-            else:
-                r, g, b = color_map[color]
-                ansi_code = rgb_to_ansi(r, g, b)  # Convert to ANSI color code
-                line += f"{ansi_code}  "  # Add color background with spaces
-        print(line + "\033[0m")  # Reset color after printing the row
+def step():
+    while True:
+        color = update_lines()
+
+        if color == 'ws':  # Treat 'w' as whitespace (no color, just reset)
+            print("\033[0m  ", end ='')  # Reset color after whitespace
+        else:
+            r, g, b = color_map[color]
+            ansi_code = rgb_to_ansi(r, g, b)  # Convert to ANSI color code
+            print(f"{ansi_code}  \033[0m", end='', flush=True)  # Add color background with spaces
+            break
+
+
+def update_lines():
+    global inline_idx
+    global lines
+    global line_idx
+    row = cup[line_idx]
+    if inline_idx == len(row):
+        inline_idx = 0
+        line_idx += 1
+        print()
+    if line_idx == len(cup):
+        line_idx = 0
+        row = cup[line_idx]
+        print('\n' * 7)
+    ret = row[inline_idx]
+    inline_idx += 1
+    return ret
 
 # Example teapot pixel data (use the format you provided with w12, g3, etc.)
-teapot_pixels_raw = [
+teacup_pixels_raw = [
     ['ws7', 'd7', 'ws14'],
     ['ws4', 'd3', 'b1', 'w6', 'd4', 'ws10'],
     ['ws2', 'd2', 'b7', 'w7', 'd3', 'ws7'],
@@ -72,10 +109,7 @@ teapot_pixels_raw = [
 ]
 
 
-# Parse the input into the correct 2D array of pixels
-teapot_pixels = parse_pixels(teapot_pixels_raw)
-
-print(teapot_pixels)
-
-# Print the teapot with colored pixels
-print_colored_pixels(teapot_pixels)
+# init()
+# for _ in range(300):
+#     time.sleep(0.1)
+#     step()
