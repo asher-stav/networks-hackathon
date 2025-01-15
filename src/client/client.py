@@ -86,7 +86,6 @@ class Client:
                     request_thread.start()
                     request_thread.join()
                     print('All transfers complete, listening to offer requests')
-                    time.sleep(300)
                 else:
                     print("Received invalid cookie or msg type")
             else:
@@ -102,11 +101,21 @@ class Client:
         self.__shutdown = True
     
     def request_file(self, server_addr: str, server_udp_port: int, server_tcp_port: int) -> None:
+        tcp_threads: list[threading.Thread] = []
         for i in range(self.__tcp_connections_num):
-            threading.Thread(target=self.tcp_connect, args=(server_addr, server_tcp_port, i, )).start()
+            t = threading.Thread(target=self.tcp_connect, args=(server_addr, server_tcp_port, i + 1, ))
+            t.start()
+            tcp_threads.append(t)
+        udp_threads: list[threading.Thread] = []
         for i in range(self.__udp_connections_num):
-            threading.Thread(target=self.udp_connect, args=(server_addr, server_udp_port, i, )).start()
-            
+            t = threading.Thread(target=self.udp_connect, args=(server_addr, server_udp_port, i + 1, ))
+            t.start()
+            udp_threads.append(t)
+
+        for t in tcp_threads:
+            t.join()
+        for t in udp_threads:
+            t.join()
             
     def tcp_connect(self, server_addr: str, server_tcp_port: int, connection_num: int) -> None:
         sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

@@ -88,24 +88,22 @@ class Server:
         offer_thread.start()
 
         print(f'Server started, listening on IP address {socket.gethostbyname(socket.gethostname())}')
-        offer_thread.join()
-        udp_thread.join()
-        tcp_thread.join()
 
     def shutdown(self) -> None:
         """
         Shuts down the server, preventing it from receiving further new client connections.
         Finishes handling existing connections before termination
         """
+        print('Terminating server...')
         self.__shutdown_lock.acquire()
         self.__shutdown = True
         self.__shutdown_lock.release()
 
         self.__offer_sock.close()
         # Enable UDP & TCP listeners to wrap up connections - close only reading from socket
-        self.__tcp_sock.shutdown(socket.SHUT_RD)
-        self.__udp_sock.shutdown(socket.SHUT_RD)
-            
+        self.__tcp_sock.close()
+        self.__udp_sock.close()
+
     def announcer(self) -> None:
         """
         Sends offers to connect to the server every second
@@ -113,6 +111,7 @@ class Server:
         while not self.is_shutdown():
             self.send_udp_offer()
             time.sleep(1)
+        print('Stopped sending offers')
 
     def send_udp_offer(self) -> None:
         """
@@ -139,9 +138,8 @@ class Server:
         except Exception as e:
             print(e)
             print('Error: failed to receive new UDP message. Wrapping up UDP server...')
-            # Wait some time for other threads to wrap up
-            time.sleep(5)
             self.__udp_sock.close()
+        print('Closed UDP server')
 
     def listen_tcp(self):
         try:
@@ -153,9 +151,8 @@ class Server:
                 threading.Thread(target=self.handle_tcp_connection, args=(client_sock, )).start()
         except:
             print('Error: failed to accept new TCP client. Wrapping up TCP server...')
-            # Wait some time for other threads to wrap up
-            time.sleep(5)
             self.__tcp_sock.close()
+        print('Closed TCP server')
 
     def handle_udp_connection(self, data: bytes, address) -> None:
         if(len(data) < REQUEST_MESSAGE_LEN):
@@ -184,6 +181,7 @@ class Server:
         data_sent: int = 0
         curr_segment = 0
 
+        sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         while data_sent < file_size:
             message: bytes = b''
             message += message_start
@@ -191,13 +189,14 @@ class Server:
             curr_payload: int = min(max_payload_size, file_size - data_sent)
             message += ('a' * curr_payload).encode()
             try:
-                self.__udp_sock.sendto(message, address)
+                sock.sendto(message, address)
             except Exception as e:
                 print(f'Error: failed to send segment number {curr_segment} to udp client: {e}')
-            print(f'Sent UDP segment number {curr_segment} to client {address}')
+            # print(f'Sent UDP segment number {curr_segment} to client {address}')
 
             curr_segment += 1
             data_sent += curr_payload
+        print('3 out')
 
     def handle_tcp_connection(self, client_sock: socket.socket) -> None:
         bytes_amount: int = 0
@@ -217,11 +216,13 @@ class Server:
             if curr_char != '\n':
                 bytes_amount = (10 * bytes_amount) + int(curr_char)
 
-        for i in range(bytes_amount):
+        sent_data: int = 0
+        while sent_data < bytes_amount:
             try:
-                client_sock.sendall('a'.encode())
+                sent_data += client_sock.send(('a' * min(1024, bytes_amount - sent_data)).encode())
             except Exception:
-                print(f'Error: failed to send byte number {i} to tcp client!')
+                print(f'Error: failed to send data to tcp client!')
                 break
+            
         print(f'Sent TCP packet to client')
         client_sock.close()
