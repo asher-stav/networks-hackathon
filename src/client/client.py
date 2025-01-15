@@ -1,4 +1,3 @@
-from pickletools import int4
 import socket
 import struct
 import threading
@@ -31,6 +30,8 @@ PAYLOAD_SEGMENT_COUNT_IDX = 5
 PAYLOAD_SEGMENT_COUNT_LEN = 8
 PAYLOAD_CURRENT_SEGMENT_IDX = 13
 PAYLOAD_CURRENT_SEGMENT_LEN = 8
+CURR_SEGMENT_IDX = 13
+CURR_SEGMENT_LEN = 8
 PAYLOAD_DATA_IDX = 21
 # actual payload length is unknown, will be calculated in runtime.
 MAX_PAYLOAD_MSG_SIZE = 1024
@@ -84,11 +85,8 @@ class Client:
                                     udp_port, tcp_port, ))
                     request_thread.start()
                     request_thread.join()
+                    print('All transfers complete, listening to offer requests')
                     time.sleep(300)
-                    # # H for unsigned short (2 bytes)
-                    # self.request_file(addr[0],
-                    #                 struct.unpack("H", data[OFFER_UDP_IDX:OFFER_UDP_IDX+OFFER_UDP_LEN])[0],
-                    #                 struct.unpack("H", data[OFFER_TCP_IDX:OFFER_TCP_IDX+OFFER_TCP_LEN])[0])
                 else:
                     print("Received invalid cookie or msg type")
             else:
@@ -104,13 +102,13 @@ class Client:
         self.__shutdown = True
     
     def request_file(self, server_addr: str, server_udp_port: int, server_tcp_port: int) -> None:
-        for _ in range(self.__tcp_connections_num):
-            threading.Thread(target=self.tcp_connect, args=(server_addr, server_tcp_port)).start()
-        for _ in range(self.__udp_connections_num):
-            threading.Thread(target=self.udp_connect, args=(server_addr, server_udp_port)).start()
+        for i in range(self.__tcp_connections_num):
+            threading.Thread(target=self.tcp_connect, args=(server_addr, server_tcp_port, i, )).start()
+        for i in range(self.__udp_connections_num):
+            threading.Thread(target=self.udp_connect, args=(server_addr, server_udp_port, i, )).start()
             
             
-    def tcp_connect(self, server_addr: str, server_tcp_port: int) -> None:
+    def tcp_connect(self, server_addr: str, server_tcp_port: int, connection_num: int) -> None:
         sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         addr: tuple[str, int] = (server_addr, server_tcp_port)
         
@@ -143,8 +141,9 @@ class Client:
             transfer_time: float = end_time - start_time
             transfer_rate: float = float('inf') if transfer_time == 0 else BYTE_SIZE * req_data_size / transfer_time
 
-            print(f"TCP connection to server {server_addr}:{server_tcp_port} finished. "
-                f"Transfer rate: {transfer_rate} bits/sec.")
+            print(f'TCP transfer #{connection_num} finished, '
+                  f'total time: {transfer_time} seconds, '
+                  f'total speed: {transfer_rate} bits/second')
 
         except socket.error as e:
             print(f"TCP connection error: {e}")
@@ -153,7 +152,7 @@ class Client:
             sock.close()
             print("Connection closed.")
     
-    def udp_connect(self, server_addr: str, server_udp_port: int) -> None:
+    def udp_connect(self, server_addr: str, server_udp_port: int, connection_num: int) -> None:
         sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         addr: tuple[str, int] = (server_addr, server_udp_port)
         cookie = struct.pack('I', COOKIE)
@@ -166,9 +165,15 @@ class Client:
             sock.sendto(request_msg, addr)
             print(f'Sent request message of {req_data_size} bytes to server \
                   {server_addr}:{server_udp_port} via UDP.')
+            # max payload size is the payload total max size minus header length
+            max_payload_size: int = MAX_PAYLOAD_MSG_SIZE - 21
+            segments_amount: int = (req_data_size // max_payload_size) + 1
+            received_segments_count: int = 0
+            curr_segment_id: int = 0
+
             start_time: float = time.time()
 
-            while(data_left > 0):
+            while curr_segment_id < segments_amount - 1:
                 data, _ = sock.recvfrom(MAX_PAYLOAD_MSG_SIZE)
                 if not data:
                     print ("Did not receive data from the server.")
@@ -182,17 +187,23 @@ class Client:
                 if message_type != TYPE_PAYLOAD:
                     print(f'Error: received invalid message type: {message_type}. Expected: {TYPE_REQUEST}')
                     continue
+                
+                curr_segment_id = struct.unpack('Q', data[CURR_SEGMENT_IDX:CURR_SEGMENT_IDX + CURR_SEGMENT_LEN])[0]
 
                 # calculate the actual payload length
                 payload_len: int = len(data[PAYLOAD_DATA_IDX:])
                 data_left -= payload_len
+                received_segments_count += 1
             
             end_time: float = time.time()
             transfer_time: float = end_time - start_time
 
             transfer_rate: float = float('inf') if transfer_time == 0 else BYTE_SIZE * req_data_size / transfer_time
-            print (f'UDP connection to server {server_addr}:{server_udp_port} finished. \
-                   Transfer rate: {transfer_rate} bits/sec.')
+            print (f'UDP transfer #{connection_num} finished, '
+                    f'total time: {transfer_time} seconds, '
+                    f'total speed: {transfer_rate} bits/second, '
+                    f'percentage of packets received successfully: '
+                    f'{(received_segments_count / segments_amount) * 100}%')
 
         except socket.timeout:
             print (f'UDP connection to server {server_addr}:{server_udp_port} timed out.')

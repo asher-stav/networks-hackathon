@@ -1,4 +1,3 @@
-from operator import add
 import socket
 import struct
 import threading
