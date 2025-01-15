@@ -191,6 +191,7 @@ class Server:
                 self.__udp_sock.sendto(message, address)
             except Exception as e:
                 print(f'Error: failed to send segment number {curr_segment} to udp client: {e}')
+            print(f'Sent UDP segment number {curr_segment} to client {address}')
 
     @staticmethod
     def get_udp_segments_amount(file_size: int) -> int:
@@ -205,16 +206,17 @@ class Server:
         while curr_char != '\n':
             try:
                 curr_char = client_sock.recv(1).decode()
-            except:
-                print('Error: TCP client failed to receive next char')
+            except Exception as e:
+                print(f'Error: TCP client failed to receive next char {e}')
                 client_sock.close()
                 return
             
-            if not curr_char.isdigit():
+            if not curr_char.isdigit() and curr_char != '\n':
                 print('Error: received a non-digit char from client in TCP connection!')
                 client_sock.close()
                 return
-            bytes_amount = (10 * bytes_amount) + int(curr_char)
+            if curr_char != '\n':
+                bytes_amount = (10 * bytes_amount) + int(curr_char)
 
         for i in range(bytes_amount):
             try:
@@ -222,4 +224,5 @@ class Server:
             except Exception:
                 print(f'Error: failed to send byte number {i} to tcp client!')
                 break
+        print(f'Sent TCP packet to client')
         client_sock.close()

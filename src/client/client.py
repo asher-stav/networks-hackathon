@@ -84,6 +84,7 @@ class Client:
                                     udp_port, tcp_port, ))
                     request_thread.start()
                     request_thread.join()
+                    time.sleep(300)
                     # # H for unsigned short (2 bytes)
                     # self.request_file(addr[0],
                     #                 struct.unpack("H", data[OFFER_UDP_IDX:OFFER_UDP_IDX+OFFER_UDP_LEN])[0],
@@ -112,11 +113,10 @@ class Client:
     def tcp_connect(self, server_addr: str, server_tcp_port: int) -> None:
         sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         addr: tuple[str, int] = (server_addr, server_tcp_port)
-        # Prepare the request message
-        cookie = struct.pack('I', COOKIE)
-        type_offer = struct.pack('H', TYPE_REQUEST)
-        request_msg: bytes = cookie + type_offer + self.__data_size
+        
         req_data_size: int = struct.unpack("Q", self.__data_size)[0]
+        request_msg: bytes = (str(req_data_size) + '\n').encode()
+        print(request_msg.decode())
         data_left: int = req_data_size
 
         try:
@@ -135,23 +135,9 @@ class Client:
                 if not data:
                     print("Server closed the connection.")
                     return
-
-                cookie: int = struct.unpack('I', data[COOKIE_IDX:COOKIE_IDX+COOKIE_LEN])
-                if cookie != COOKIE:
-                    print(f'Error: received invalid cookie: {cookie}')
-                    print('Closing socket...')
-                    sock.close()
-                    return
-                    
-                message_type: int = struct.unpack('B', data[TYPE_IDX:TYPE_IDX+TYPE_LEN])
-                if message_type != TYPE_PAYLOAD:
-                    print(f'Error: received invalid message type: {message_type}. Expected: {TYPE_REQUEST}')
-                    print('Closing socket...')
-                    sock.close()
-                    return
                 
                 # Calculate the actual payload length
-                payload_len: int = len(data[PAYLOAD_DATA_IDX:])
+                payload_len: int = len(data)
                 data_left -= payload_len
 
             end_time: float = time.time()
@@ -187,12 +173,12 @@ class Client:
                 if not data:
                     print ("Did not receive data from the server.")
                     continue
-                cookie: int = struct.unpack('I', data[COOKIE_IDX:COOKIE_IDX+COOKIE_LEN])
+                cookie: int = struct.unpack('I', data[COOKIE_IDX:COOKIE_IDX+COOKIE_LEN])[0]
                 if cookie != COOKIE:
-                    print(f'Error: received invalid cookie: {cookie}')
+                    print(f'Error: received invalid cookie: {hex(cookie)}')
                     continue
                 
-                message_type: int = struct.unpack('B', data[TYPE_IDX:TYPE_IDX+TYPE_LEN])
+                message_type: int = struct.unpack('B', data[TYPE_IDX:TYPE_IDX+TYPE_LEN])[0]
                 if message_type != TYPE_PAYLOAD:
                     print(f'Error: received invalid message type: {message_type}. Expected: {TYPE_REQUEST}')
                     continue
