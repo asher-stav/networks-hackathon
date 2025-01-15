@@ -8,22 +8,25 @@ from server import Server
 UDP_PORT_INDEX = 1
 TCP_PORT_INDEX = 2
 BROADCAST_PORT_INDEX = 3
+SUBNETMASK_INDEX = 4
 
 
 def main() -> None:
     udp_port: int
     tcp_port: int
     broadcast_port: int
+    subnetmask: str
 
     try:
         udp_port = int(sys.argv[UDP_PORT_INDEX])
         tcp_port = int(sys.argv[TCP_PORT_INDEX])
         broadcast_port = int(sys.argv[BROADCAST_PORT_INDEX])
+        subnetmask = sys.argv[SUBNETMASK_INDEX]
     except Exception:
-        logger.error("Invalid command line arguments. Format: <udp_port> <tcp_port> <broadcast_port>")
+        logger.error("Invalid command line arguments. Format: <udp_port> <tcp_port> <broadcast_port> <subnetmask>")
         return
     
-    server: Server = Server(udp_port, tcp_port, broadcast_port)
+    server: Server = Server(udp_port, tcp_port, broadcast_port, subnetmask)
     logger.info('Starting server. Press any key to terminate')
     threading.Thread(target=server.run).start()
     threading.Thread(target=shutdown, args=(server, )).start()
