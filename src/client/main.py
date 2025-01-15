@@ -6,23 +6,23 @@ from client import Client
 PORT_IDX = 1
 
 def main() -> None:
-    __port: int
-    __data_size: int
-    __tcp_connections_num: int
-    __udp_connections_num: int
+    port: int
+    data_size: int
+    tcp_connections_num: int
+    udp_connections_num: int
     try:
-        __port = int(sys.argv[PORT_IDX])
+        port = int(sys.argv[PORT_IDX])
     except Exception:
         print("Invalid command line argument, missing port number.")
         return
 
     # Gets the data size, TCP connections number and UDP connections number from the user
-    __data_size = get_data_size()
-    __tcp_connections_num = get_connections_num("TCP")
-    __udp_connections_num = get_connections_num("UDP")
+    data_size = get_data_size()
+    tcp_connections_num = get_connections_num("TCP")
+    udp_connections_num = get_connections_num("UDP")
 
     # Initializes the client
-    client = Client(__port, __data_size, __tcp_connections_num, __udp_connections_num)
+    client = Client(port, data_size, tcp_connections_num, udp_connections_num)
     # Runs the client
     threading.Thread(target=client.run(), args=()).start()
     input("Press any key to shutdown the client, this will prevent further connections")
@@ -53,10 +53,10 @@ Input: """)
     
 def get_connections_num(connection_type: str) -> int:
     connections_num: str = input(f"Enter amount of {connection_type} connections: ")
-    if (not connections_num.isnumeric()):
+    if not connections_num.isnumeric():
         print("Invalid input, please enter a number")
         connections_num = get_connections_num(connection_type)
-    return connections_num
+    return int(connections_num)
     
 if __name__ == '__main__':
     main()

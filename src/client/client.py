@@ -59,6 +59,7 @@ class Client:
         Runs the client until stopped, constantly looking for servers to run a speedtest on.
         """
         print ("Client started, listening for offer requests...")
+        print(self.__tcp_connections_num, self.__udp_connections_num)
         # AF_INET - IPv4, SOCK_DGRAM - UDP
         sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         # Enable broadcasting on the socket
@@ -96,9 +97,9 @@ class Client:
         self.__shutdown = True
     
     def request_file(self, server_addr: str, server_udp_port: int, server_tcp_port: int) -> None:
-        for i in range(self.__tcp_connections_num):
+        for _ in range(self.__tcp_connections_num):
             threading.Thread(target=self.tcp_connect, args=(server_addr, server_tcp_port)).start()
-        for i in range(self.__udp_connections_num):
+        for _ in range(self.__udp_connections_num):
             threading.Thread(target=self.udp_connect, args=(server_addr, server_udp_port)).start()
             
             

@@ -148,7 +148,8 @@ class Server:
             self.__tcp_sock.listen()
 
             while not self.is_shutdown():
-                client_sock: socket.socket = self.__tcp_sock.accept()
+                client_sock, address = self.__tcp_sock.accept()
+                print(f'Accepted TCP client {address}')
                 threading.Thread(target=self.handle_tcp_connection, args=(client_sock, )).start()
         except:
             print('Error: failed to accept new TCP client. Wrapping up TCP server...')
