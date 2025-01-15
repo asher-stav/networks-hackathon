@@ -189,6 +189,7 @@ class Server:
         data_sent: int = 0
         curr_segment = 0
 
+        logger.debugging(f'Sending {file_size} bytes to client in {segments_amount} segments over UDP...')
         sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         while data_sent < file_size:
             message: bytes = b''
@@ -227,6 +228,7 @@ class Server:
             if curr_char != '\n':
                 bytes_amount = (10 * bytes_amount) + int(curr_char)
 
+        logger.debugging(f'Sending {bytes_amount} bytes to client over TCP...')
         sent_data: int = 0
         while sent_data < bytes_amount:
             try:

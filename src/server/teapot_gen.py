@@ -80,7 +80,7 @@ def update_lines():
     if line_idx == len(parsed_pixels):
         line_idx = 0
         row = parsed_pixels[line_idx]
-        print('\033[F' * 18, flush=True)
+        print('\033[F' * 17, flush=True)
         clear = not clear
     ret = row[inline_idx]
     inline_idx += 1

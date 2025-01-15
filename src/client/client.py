@@ -182,9 +182,11 @@ class Client:
         Prints TCP connection metrics: connection number, total transfer time
         and transfer rate
         """
-        logger.info(f'TCP transfer #{connection_num} finished, '
-                f'total time: {transfer_time:.4f} seconds, '
-                f'total speed: {transfer_rate:.4f} bits/second')
+        logger.info(f'TCP transfer #{connection_num} finished\n'
+                f'\t- total time for TCP #{connection_num} : {transfer_time:.4f} seconds \n'
+                f'\n\t- total speed for TCP #{connection_num}: {transfer_rate:.4f} bits/second'
+                f'{(f'={(transfer_rate / (1 << 10)):.4f} kilobits/seconds ' if transfer_rate >= (1 << 10) else '')}'
+                f'{(f'={(transfer_rate / (1 << 20)):.4f} megabits/seconds ' if transfer_rate >= (1 << 20) else '')}')
         
     
     def udp_connect(self, server_addr: str, server_udp_port: int, connection_num: int) -> None:
@@ -234,10 +236,10 @@ class Client:
             transfer_rate: float = float('inf') if transfer_time == 0 else BYTE_SIZE * req_data_size / transfer_time
             Client.print_udp_connection_metrics(connection_num, transfer_time,
                         transfer_rate, (received_segments_count / segments_amount) * 100)
-
         except socket.timeout:
             logger.error(f'UDP connection to server {server_addr}:{server_udp_port} timed out.')
-            return
+        except Exception as e:
+            logger.error(f'Failed to receive message from server: {e}')
         
     @staticmethod
     def print_udp_connection_metrics(connection_num: int, transfer_time: float,
@@ -246,7 +248,9 @@ class Client:
         Prints UDP connection metrics: connection number, total transfer time,
         transfer rate and what percent of packets received
         """
-        logger.info(f'UDP transfer #{connection_num} finished, '
-                f'total time: {transfer_time:.4f} seconds, '
-                f'total speed: {transfer_rate:.4f} bits/second, '
-                f'percentage of packets received successfully: {success_percent:.4f}%')
+        logger.info(f'UDP transfer #{connection_num} finished\n'
+                f'\t- total time for UDP #{connection_num}: {transfer_time:.4f} seconds \n'
+                f'\t- total speed for UDP #{connection_num}: {transfer_rate:.4f} bits/second '
+                f'\n\t- percentage of packets received successfully: {success_percent:.4f}%'
+                f'{(f'={(transfer_rate / (1 << 10)):.4f} kilobits/seconds, ' if transfer_rate >= (1 << 10) else '')}'
+                f'{(f'={(transfer_rate / (1 << 20)):.4f} megabits/seconds, ' if transfer_rate >= (1 << 20) else '')}')
