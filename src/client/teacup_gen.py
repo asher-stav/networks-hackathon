@@ -12,6 +12,8 @@ color_map = {
     ' ': (0, 0, 0)         # Black (for whitespace)
 }
 
+clear: bool = False
+stop_print: bool = False
 parsed_pixels: str = ''
 lines: int = 0
 line_idx: int = 0
@@ -51,11 +53,15 @@ def init():
 
 # Print teapot pixels with colored backgrounds
 def step():
+    global clear
     while True:
         color = update_lines()
 
         if color == 'ws':  # Treat 'ws' as whitespace (no color, just reset)
             print("\033[0m  ", end ='')  # Reset color after whitespace
+        elif clear:
+            print("\033[0m  ", end ='', flush=True)
+            break
         else:
             r, g, b = color_map[color]
             ansi_code = rgb_to_ansi(r, g, b)  # Convert to ANSI color code
@@ -67,6 +73,7 @@ def update_lines():
     global inline_idx
     global lines
     global line_idx
+    global clear
     row = parsed_pixels[line_idx]
     if inline_idx == len(row):
         inline_idx = 0
@@ -75,7 +82,8 @@ def update_lines():
     if line_idx == len(parsed_pixels):
         line_idx = 0
         row = parsed_pixels[line_idx]
-        print('\n' * 7)
+        print('\033[F' * 22, flush=True)
+        clear = not clear
     ret = row[inline_idx]
     inline_idx += 1
     return ret
@@ -107,11 +115,16 @@ pixels_raw = [
 
 
 def start():
-    global __stop
-    while not __stop:
+    global stop_print, clear
+    global line_idx, inline_idx
+    stop_print = False
+    clear = False
+    line_idx = 0
+    inline_idx = 0
+    while not stop_print:
         step()
         time.sleep(0.01)
 
 def stop():
-    global __stop
-    __stop = True
+    global stop_print
+    stop_print = True

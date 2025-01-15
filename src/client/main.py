@@ -1,6 +1,7 @@
 import sys
 import threading
 
+import logger
 from client import Client
 
 PORT_IDX = 1
@@ -13,7 +14,7 @@ def main() -> None:
     try:
         port = int(sys.argv[PORT_IDX])
     except Exception:
-        print("Invalid command line argument, missing port number.")
+        logger.error("Invalid command line argument, missing port number.")
         return
 
     # Gets the data size, TCP connections number and UDP connections number from the user
@@ -24,7 +25,7 @@ def main() -> None:
     # Initializes the client
     client = Client(port, data_size, tcp_connections_num, udp_connections_num)
     # Runs the client
-    print('Starting client. Press any key to terminate')
+    logger.info('Starting client. Press any key to terminate')
     threading.Thread(target=client.run, args=()).start()
     threading.Thread(target=shutdown, args=(client, )).start()
 
@@ -58,7 +59,7 @@ Input: """)
         case '4':
             data_size = int(input(data_req_str.format(unit="gigabytes"))) * 1024 * 1024 * 1024
         case _:
-            print("Invalid choice, please try again")
+            logger.error("Invalid choice, please try again")
             data_size = get_data_size()
     return data_size
     
@@ -69,7 +70,7 @@ def get_connections_num(connection_type: str) -> int:
     """
     connections_num: str = input(f"Enter amount of {connection_type} connections: ")
     if not connections_num.isnumeric():
-        print("Invalid input, please enter a number")
+        logger.error("Invalid input, please enter a number")
         connections_num = get_connections_num(connection_type)
     return int(connections_num)
     

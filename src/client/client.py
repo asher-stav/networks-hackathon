@@ -1,7 +1,11 @@
+from math import log
 import socket
 import struct
 import threading
 import time
+
+import teacup_gen
+import logger
 
 BYTE_SIZE = 8
 
@@ -68,14 +72,17 @@ class Client:
         # sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
         self.__offer_sock.bind(('', self.__port))
 
-        print ("Client started, listening for offer requests...")
+        logger.info("Client started, listening for offer requests...")
+        teacup_gen.init()
         
         try:
             while not self.__shutdown:
                 data: bytes
                 addr: tuple[str, int]
+                threading.Thread(target=teacup_gen.start).start()
                 # purposefully set 1 byte more than the message length to check for errors
                 data, addr = self.__offer_sock.recvfrom(OFFER_MSG_LEN)
+                teacup_gen.stop()
 
                 # check for correct offer message structure and values.
                 if len(data) == OFFER_MSG_LEN:
@@ -88,13 +95,13 @@ class Client:
                                         udp_port, tcp_port, ))
                         request_thread.start()
                         request_thread.join()
-                        print('All transfers complete, listening to offer requests')
+                        logger.info('All transfers complete, listening to offer requests')
                     else:
-                        print("Received invalid cookie or message type")
+                        logger.error("Received invalid cookie or message type")
                 else:
-                    print("Received message of unexpected length")
+                    logger.error("Received message of unexpected length")
         except:
-            print('Failed to receive offer')
+            logger.error('Failed to receive offer')
 
         self.__offer_sock.close()
 
@@ -103,9 +110,10 @@ class Client:
         Shuts down the client, preventing it from receiving further offers.
         If the client runs a task currently, it will finish it before termination.
         """
-        print('Terminating client...')
+        logger.info('Terminating client...')
         self.__shutdown = True
         self.__offer_sock.close()
+        teacup_gen.stop()
     
     def request_file(self, server_addr: str, server_udp_port: int, server_tcp_port: int) -> None:
         tcp_threads: list[threading.Thread] = []
@@ -137,18 +145,18 @@ class Client:
         try:
             # Connect to the server
             sock.connect(addr)
-            print(f"Connected to server {server_addr}:{server_tcp_port} via TCP.")
+            logger.info(f"Connected to server {server_addr}:{server_tcp_port} via TCP.")
 
             # Send the request message
             sock.sendall(request_msg)
-            print(f"Sent request message of {req_data_size} bytes to the connected server.")
+            logger.debugging(f"Sent request message of {req_data_size} bytes to the connected server.")
 
             # Receive data
             start_time: float = time.time()
             while data_left > 0:
                 data: bytes = sock.recv(MAX_PAYLOAD_MSG_SIZE)
                 if not data:
-                    print("Server closed the connection.")
+                    logger.error("Server closed the connection.")
                     return
                 
                 # Calculate the actual payload length
@@ -161,11 +169,11 @@ class Client:
             Client.print_tcp_connection_metrics(connection_num, transfer_time, transfer_rate)
 
         except socket.error as e:
-            print(f"TCP connection error: {e}")
+            logger.error(f"TCP connection error: {e}")
 
         finally:
             sock.close()
-            print("Connection closed.")
+            logger.debugging("Connection closed.")
 
     @staticmethod
     def print_tcp_connection_metrics(connection_num: int, transfer_time: float,
@@ -174,9 +182,11 @@ class Client:
         Prints TCP connection metrics: connection number, total transfer time
         and transfer rate
         """
-        print(f'TCP transfer #{connection_num} finished, '
-                f'total time: {transfer_time} seconds, '
-                f'total speed: {transfer_rate} bits/second')
+        logger.info(f'TCP transfer #{connection_num} finished\n'
+                f'\t- total time for TCP #{connection_num} : {transfer_time:.4f} seconds \n'
+                f'\n\t- total speed for TCP #{connection_num}: {transfer_rate:.4f} bits/second'
+                f'{(f'={(transfer_rate / (1 << 10)):.4f} kilobits/seconds ' if transfer_rate >= (1 << 10) else '')}'
+                f'{(f'={(transfer_rate / (1 << 20)):.4f} megabits/seconds ' if transfer_rate >= (1 << 20) else '')}')
         
     
     def udp_connect(self, server_addr: str, server_udp_port: int, connection_num: int) -> None:
@@ -190,8 +200,8 @@ class Client:
 
         try:
             sock.sendto(request_msg, addr)
-            print(f'Sent request message of {req_data_size} bytes to server \
-                  {server_addr}:{server_udp_port} via UDP.')
+            logger.debugging(f'Sent request message of {req_data_size} bytes to server '
+                  f'{server_addr}:{server_udp_port} via UDP.')
             segments_amount: int = (req_data_size // MAX_PAYLOAD_SIZE) + 1
             received_segments_count: int = 0
             curr_segment_id: int = 0
@@ -201,16 +211,16 @@ class Client:
             while curr_segment_id < segments_amount - 1:
                 data, _ = sock.recvfrom(MAX_PAYLOAD_MSG_SIZE)
                 if not data:
-                    print ("Did not receive data from the server.")
+                    logger.error("Did not receive data from the server.")
                     continue
                 cookie: int = struct.unpack('I', data[COOKIE_IDX:COOKIE_IDX+COOKIE_LEN])[0]
                 if cookie != COOKIE:
-                    print(f'Error: received invalid cookie: {hex(cookie)}')
+                    logger.error(f'Error: received invalid cookie: {hex(cookie)}')
                     continue
                 
                 message_type: int = struct.unpack('B', data[TYPE_IDX:TYPE_IDX+TYPE_LEN])[0]
                 if message_type != TYPE_PAYLOAD:
-                    print(f'Error: received invalid message type: {message_type}. Expected: {TYPE_REQUEST}')
+                    logger.error(f'Error: received invalid message type: {message_type}. Expected: {TYPE_REQUEST}')
                     continue
                 
                 curr_segment_id = struct.unpack('Q', data[CURR_SEGMENT_IDX:CURR_SEGMENT_IDX + CURR_SEGMENT_LEN])[0]
@@ -226,10 +236,10 @@ class Client:
             transfer_rate: float = float('inf') if transfer_time == 0 else BYTE_SIZE * req_data_size / transfer_time
             Client.print_udp_connection_metrics(connection_num, transfer_time,
                         transfer_rate, (received_segments_count / segments_amount) * 100)
-
         except socket.timeout:
-            print (f'UDP connection to server {server_addr}:{server_udp_port} timed out.')
-            return
+            logger.error(f'UDP connection to server {server_addr}:{server_udp_port} timed out.')
+        except Exception as e:
+            logger.error(f'Failed to receive message from server: {e}')
         
     @staticmethod
     def print_udp_connection_metrics(connection_num: int, transfer_time: float,
@@ -238,7 +248,9 @@ class Client:
         Prints UDP connection metrics: connection number, total transfer time,
         transfer rate and what percent of packets received
         """
-        print(f'UDP transfer #{connection_num} finished, '
-                f'total time: {transfer_time} seconds, '
-                f'total speed: {transfer_rate} bits/second, '
-                f'percentage of packets received successfully: {success_percent}%')
+        logger.info(f'UDP transfer #{connection_num} finished\n'
+                f'\t- total time for UDP #{connection_num}: {transfer_time:.4f} seconds \n'
+                f'\t- total speed for UDP #{connection_num}: {transfer_rate:.4f} bits/second '
+                f'\n\t- percentage of packets received successfully: {success_percent:.4f}%'
+                f'{(f'={(transfer_rate / (1 << 10)):.4f} kilobits/seconds, ' if transfer_rate >= (1 << 10) else '')}'
+                f'{(f'={(transfer_rate / (1 << 20)):.4f} megabits/seconds, ' if transfer_rate >= (1 << 20) else '')}')

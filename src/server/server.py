@@ -3,6 +3,9 @@ import struct
 import threading
 import time
 
+import teapot_gen
+import logger
+
 
 COOKIE = 0xabcddcba
 UDP_OFFER_MSG_CODE = 0x2
@@ -48,7 +51,7 @@ class Server:
         try:
             self.__udp_sock.bind(('', self.__udp_port))
         except:
-            print(f'Error: failed to bind UDP server to port {self.__udp_port}')
+            logger.error(f'Error: failed to bind UDP server to port {self.__udp_port}')
             self.__udp_sock.close()
             return
 
@@ -60,7 +63,7 @@ class Server:
         try:
             self.__tcp_sock.bind(('', self.__tcp_port))
         except:
-            print(f'Error: failed to bind TCP server to port {self.__tcp_port}')
+            logger.error(f'Error: failed to bind TCP server to port {self.__tcp_port}')
             self.__udp_sock.close()
             self.__tcp_sock.close()
             return
@@ -74,7 +77,7 @@ class Server:
             self.__offer_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             # self.__offer_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
         except:
-            print(f'Error: failed to bind broadcast to port {self.__broadcast_port}')
+            logger.error(f'Error: failed to bind broadcast to port {self.__broadcast_port}')
             self.__udp_sock.close()
             self.__tcp_sock.close()
             self.__offer_sock.close()
@@ -82,20 +85,23 @@ class Server:
         offer_thread: threading.Thread = threading.Thread(target=self.announce_offers)
         offer_thread.start()
 
-        print(f'Server started, listening on IP address {socket.gethostbyname(socket.gethostname())}')
+        logger.info(f'Server started, listening on IP address {socket.gethostbyname(socket.gethostname())}')
+        teapot_gen.init()
+        threading.Thread(target=teapot_gen.start).start()
 
     def shutdown(self) -> None:
         """
         Shuts down the server, preventing it from receiving further new client connections.
         Finishes handling existing connections before termination
         """
-        print('Terminating server...')
+        logger.info('Terminating server...')
         self.__shutdown = True
 
         self.__offer_sock.close()
         # Enable UDP & TCP listeners to wrap up connections - close only reading from socket
         self.__tcp_sock.close()
         self.__udp_sock.close()
+        teapot_gen.stop()
 
     def announce_offers(self) -> None:
         """
@@ -104,7 +110,7 @@ class Server:
         while not self.__shutdown:
             self.send_udp_offer()
             time.sleep(1)
-        print('Stopped sending offers')
+        logger.debugging('Stopped sending offers')
 
     def send_udp_offer(self) -> None:
         """
@@ -129,12 +135,13 @@ class Server:
         try:
             while not self.__shutdown:
                 data, address = self.__udp_sock.recvfrom(MAX_UDP_MESSAGE_LEN)
-                print(f'Accepted UDP client {address}')
+                teapot_gen.stop()
+                logger.debugging(f'Accepted UDP client {address}')
                 threading.Thread(target=self.handle_udp_connection, args=(data, address)).start()
         except:
-            print('Error: failed to receive new UDP message. Wrapping up UDP server...')
+            logger.error('Error: failed to receive new UDP message. Wrapping up UDP server...')
             self.__udp_sock.close()
-        print('Closed UDP server')
+        logger.debugging('Closed UDP server')
 
     def listen_tcp(self):
         """
@@ -145,12 +152,13 @@ class Server:
 
             while not self.__shutdown:
                 client_sock, address = self.__tcp_sock.accept()
-                print(f'Accepted TCP client {address}')
+                teapot_gen.stop()
+                logger.debugging(f'Accepted TCP client {address}')
                 threading.Thread(target=self.handle_tcp_connection, args=(client_sock, )).start()
         except:
-            print('Error: failed to accept new TCP client. Wrapping up TCP server...')
+            logger.error('Error: failed to accept new TCP client. Wrapping up TCP server...')
             self.__tcp_sock.close()
-        print('Closed TCP server')
+        logger.debugging('Closed TCP server')
 
     def handle_udp_connection(self, data: bytes, address) -> None:
         """
@@ -159,17 +167,17 @@ class Server:
         file size
         """
         if(len(data) < REQUEST_MESSAGE_LEN):
-            print('Error: received invalid message length from UDP client!')
+            logger.error('Error: received invalid message length from UDP client!')
             return
         
         cookie: int = struct.unpack('I', data[REQUEST_COOKIE_INDEX:REQUEST_TYPE_INDEX])[0]
         if cookie != COOKIE:
-            print(f'Error: received invalid cookie: {cookie}')
+            logger.error(f'Error: received invalid cookie: {cookie}')
             return
         
         message_type: int = struct.unpack('B', data[REQUEST_TYPE_INDEX:REQUEST_FILE_SIZE_INDEX])[0]
         if message_type != UDP_REQUEST_MSG_CODE:
-            print(f'Error: received invalid message type: {message_type}. Expected: {UDP_REQUEST_MSG_CODE}')
+            logger.error(f'Error: received invalid message type: {message_type}. Expected: {UDP_REQUEST_MSG_CODE}')
             return
         
         file_size: int = struct.unpack('Q', data[REQUEST_FILE_SIZE_INDEX:REQUEST_MESSAGE_LEN])[0]
@@ -181,6 +189,7 @@ class Server:
         data_sent: int = 0
         curr_segment = 0
 
+        logger.debugging(f'Sending {file_size} bytes to client in {segments_amount} segments over UDP...')
         sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         while data_sent < file_size:
             message: bytes = b''
@@ -191,11 +200,11 @@ class Server:
             try:
                 sock.sendto(message, address)
             except Exception as e:
-                print(f'Error: failed to send segment number {curr_segment} to udp client: {e}')
+                logger.error(f'Error: failed to send segment number {curr_segment} to udp client: {e}')
 
             curr_segment += 1
             data_sent += curr_payload
-        print(f'Finished sending data in UDP connection ${address}')
+        logger.debugging(f'Finished sending data in UDP connection ${address}')
 
     def handle_tcp_connection(self, client_sock: socket.socket) -> None:
         """
@@ -208,25 +217,26 @@ class Server:
             try:
                 curr_char = client_sock.recv(1).decode()
             except Exception as e:
-                print(f'Error: TCP client failed to receive next char {e}')
+                logger.error(f'Error: TCP client failed to receive next char {e}')
                 client_sock.close()
                 return
             
             if not curr_char.isdigit() and curr_char != '\n':
-                print('Error: received a non-digit char from client in TCP connection!')
+                logger.error('Error: received a non-digit char from client in TCP connection!')
                 client_sock.close()
                 return
             if curr_char != '\n':
                 bytes_amount = (10 * bytes_amount) + int(curr_char)
 
+        logger.debugging(f'Sending {bytes_amount} bytes to client over TCP...')
         sent_data: int = 0
         while sent_data < bytes_amount:
             try:
                 sent_data += client_sock.send(('a' * min(1024, bytes_amount - sent_data)).encode())
             except Exception:
-                print(f'Error: failed to send data to tcp client!')
+                logger.error(f'Error: failed to send data to tcp client!')
                 client_sock.close()
                 return
             
         client_sock.close()
-        print(f'Finished sending data in TCP connection')
+        logger.debugging(f'Finished sending data in TCP connection')
